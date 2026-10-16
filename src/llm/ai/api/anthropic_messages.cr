@@ -1,9 +1,7 @@
 # src/llm/ai/api/anthropic_messages.cr
 require "json"
 
-module LLM::AI
-  module Api
-    module AnthropicMessages
+    module LLM::AI::Api::AnthropicMessages
       CLAUDE_CODE_VERSION = "2.1.280"
       BETA_FINE_GRAINED   = "fine-grained-tool-streaming-2025-05-14"
       BETA_INTERLEAVED    = "interleaved-thinking-2025-05-14"
@@ -960,5 +958,3 @@ module LLM::AI
         content.map(&.text).join("\n")
       end
     end
-  end
-end

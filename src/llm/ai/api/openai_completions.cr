@@ -1,9 +1,7 @@
 # src/llm/ai/api/openai_completions.cr
 require "json"
 
-module LLM::AI
-  module Api
-    module OpenAICompletions
+    module LLM::AI::Api::OpenAICompletions
       VALID_REASONING_FIELDS = ["reasoning_content", "reasoning", "reasoning_text"]
 
       class StreamState
@@ -805,5 +803,3 @@ module LLM::AI
         content.map(&.text).join("\n")
       end
     end
-  end
-end

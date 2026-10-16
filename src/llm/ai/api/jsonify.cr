@@ -1,8 +1,7 @@
 # src/llm/ai/api/jsonify.cr
 require "json"
 
-module LLM::AI
-  module Jsonify
+  module LLM::AI::Jsonify
     extend self
 
     def any(json : JSON::Builder, value : JSON::Any) : Nil
@@ -28,4 +27,3 @@ module LLM::AI
       end
     end
   end
-end

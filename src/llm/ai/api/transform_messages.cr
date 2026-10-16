@@ -1,6 +1,5 @@
 # src/llm/ai/api/transform_messages.cr
-module LLM::AI
-  module Transform
+  module LLM::AI::Transform
     def self.normalize(context : Context, target : Model) : Context
       messages      = [] of Message
       id_map        = {} of String => String
@@ -108,4 +107,3 @@ module LLM::AI
       normalized.size > 64 ? normalized[0, 64] : normalized
     end
   end
-end

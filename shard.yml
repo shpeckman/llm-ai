@@ -1,0 +1,13 @@
+# shard.yml
+name: llm-ai
+version: 1.0.0
+
+authors:
+  - shpeckman
+
+description: |
+  ...
+
+crystal: ">= 1.21.0"
+
+license: MIT

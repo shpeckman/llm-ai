@@ -1,0 +1,30 @@
+[
+  {
+    "id": "kimi-for-coding",
+    "name": "Kimi For Coding",
+    "base_url": "https://api.kimi.com/coding/v1",
+    "api": "openai_completions",
+    "input": ["text"],
+    "context_window": 256000,
+    "max_tokens": 65536,
+    "reasoning": true,
+    "thinking_level_map": {"minimal": "low", "low": "low", "medium": "high", "high": "high", "xhigh": "max", "max": "max"},
+    "prompt_cache": false,
+    "cost": {"input": 2.1, "output": 17.5, "cache_read": 0.26, "cache_write": 2.1},
+    "compat": {"max_tokens_field": "max_completion_tokens", "supports_mid_convo_tool_additions": true}
+  },
+  {
+    "id": "kimi-for-coding-highspeed",
+    "name": "Kimi For Coding Highspeed",
+    "base_url": "https://api.kimi.com/coding/v1",
+    "api": "openai_completions",
+    "input": ["text"],
+    "context_window": 256000,
+    "max_tokens": 65536,
+    "reasoning": true,
+    "thinking_level_map": {"minimal": "low", "low": "low", "medium": "high", "high": "high", "xhigh": "max", "max": "max"},
+    "prompt_cache": false,
+    "cost": {"input": 2.1, "output": 17.5, "cache_read": 0.26, "cache_write": 2.1},
+    "compat": {"max_tokens_field": "max_completion_tokens", "supports_mid_convo_tool_additions": true}
+  }
+]

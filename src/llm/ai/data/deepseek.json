@@ -1,0 +1,30 @@
+[
+  {
+    "id": "deepseek-flash",
+    "name": "DeepSeek Flash",
+    "base_url": "https://api.deepseek.com",
+    "api": "openai_completions",
+    "input": ["text", "image"],
+    "context_window": 1000000,
+    "max_tokens": 393216,
+    "reasoning": true,
+    "thinking_level_map": {"minimal": "low", "low": "low", "medium": "medium", "high": "high", "xhigh": "high", "max": "high"},
+    "prompt_cache": false,
+    "cost": {"input": 0.15, "output": 0.6, "cache_read": 0.003, "cache_write": 0.15},
+    "compat": {"max_tokens_field": "max_tokens", "thinking_format": "deepseek", "requires_reasoning_content_on_assistant_messages": true, "supports_store": false}
+  },
+  {
+    "id": "deepseek-v4-pro",
+    "name": "DeepSeek V4 Pro",
+    "base_url": "https://api.deepseek.com",
+    "api": "openai_completions",
+    "input": ["text"],
+    "context_window": 1000000,
+    "max_tokens": 393216,
+    "reasoning": true,
+    "thinking_level_map": {"minimal": "low", "low": "low", "medium": "medium", "high": "high", "xhigh": "high", "max": "high"},
+    "prompt_cache": false,
+    "cost": {"input": 0.66, "output": 1.98, "cache_read": 0.022, "cache_write": 0.66},
+    "compat": {"max_tokens_field": "max_tokens", "thinking_format": "deepseek", "requires_reasoning_content_on_assistant_messages": true, "supports_store": false}
+  }
+]

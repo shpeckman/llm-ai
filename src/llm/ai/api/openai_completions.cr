@@ -1,4 +1,4 @@
-# src/pi_ai/api/openai_completions.cr
+# src/llm/ai/api/openai_completions.cr
 require "json"
 
 module LLM::AI
@@ -7,46 +7,46 @@ module LLM::AI
       VALID_REASONING_FIELDS = ["reasoning_content", "reasoning", "reasoning_text"]
 
       class StreamState
-        getter model : Model
-        getter options : StreamOptions
-        getter stream : MessageStream
-        property blocks : Array(ContentBlock)
-        property text_index : Int32?
-        property thinking_index : Int32?
-        property tool_by_index : Hash(Int64, Int32)
-        property tool_by_id : Hash(String, Int32)
-        property partial_args : Hash(Int32, String)
-        property usage : Usage?
-        property stop_reason : StopReason
-        property raw_stop_reason : String?
-        property error_message : String?
-        property response_id : String?
-        property response_model : String?
+        getter model               : Model
+        getter options             : StreamOptions
+        getter stream              : MessageStream
+        property blocks            : Array(ContentBlock)
+        property text_index        : Int32?
+        property thinking_index    : Int32?
+        property tool_by_index     : Hash(Int64, Int32)
+        property tool_by_id        : Hash(String, Int32)
+        property partial_args      : Hash(Int32, String)
+        property usage             : Usage?
+        property stop_reason       : StopReason
+        property raw_stop_reason   : String?
+        property error_message     : String?
+        property response_id       : String?
+        property response_model    : String?
         property has_finish_reason : Bool
-        property finished : Bool
-        getter started_at : Time::Instant
-        property streamed_details : Array(JSON::Any)
-        property duration_ms : Int64?
+        property finished          : Bool
+        getter started_at          : Time::Instant
+        property streamed_details  : Array(JSON::Any)
+        property duration_ms       : Int64?
         property reasoning_details : JSON::Any?
 
         def initialize(@model : Model, @options : StreamOptions, @stream : MessageStream)
-          @blocks = [] of ContentBlock
-          @text_index = nil
-          @thinking_index = nil
-          @tool_by_index = {} of Int64 => Int32
-          @tool_by_id = {} of String => Int32
-          @partial_args = {} of Int32 => String
-          @usage = nil
-          @stop_reason = StopReason::Pending
-          @raw_stop_reason = nil
-          @error_message = nil
-          @response_id = nil
-          @response_model = nil
+          @blocks            = [] of ContentBlock
+          @text_index        = nil
+          @thinking_index    = nil
+          @tool_by_index     = {} of Int64 => Int32
+          @tool_by_id        = {} of String => Int32
+          @partial_args      = {} of Int32 => String
+          @usage             = nil
+          @stop_reason       = StopReason::Pending
+          @raw_stop_reason   = nil
+          @error_message     = nil
+          @response_id       = nil
+          @response_model    = nil
           @has_finish_reason = false
-          @finished = false
-          @started_at = Time.instant
-          @streamed_details = [] of JSON::Any
-          @duration_ms = nil
+          @finished          = false
+          @started_at        = Time.instant
+          @streamed_details  = [] of JSON::Any
+          @duration_ms       = nil
           @reasoning_details = nil
         end
       end
@@ -95,7 +95,7 @@ module LLM::AI
           end
         end
         if pair = reasoning
-          idx = ensure_thinking_block(pair[0], state)
+          idx   = ensure_thinking_block(pair[0], state)
           block = state.blocks[idx].as(ThinkingContent)
           state.blocks[idx] = ThinkingContent.new(block.thinking + pair[1], block.thinking_signature, block.redacted)
           emit(StreamEvent::ThinkingDelta.new(idx, pair[1], snapshot(state)), state)
@@ -108,7 +108,7 @@ module LLM::AI
           end
         end
         if (text = delta["content"]?.try(&.as_s?)) && !text.empty?
-          idx = ensure_text_block(state)
+          idx   = ensure_text_block(state)
           block = state.blocks[idx].as(TextContent)
           state.blocks[idx] = TextContent.new(block.text + text, block.text_signature)
           emit(StreamEvent::TextDelta.new(idx, text, snapshot(state)), state)
@@ -199,10 +199,10 @@ module LLM::AI
       end
 
       private def self.finalize_tool(idx : Int32, state : StreamState) : Nil
-        tool = state.blocks[idx].as(ToolCall)
+        tool      = state.blocks[idx].as(ToolCall)
         args_text = state.partial_args[idx]? || ""
-        args = JSON::Any.new({} of String => JSON::Any)
-        error = nil
+        args      = JSON::Any.new({} of String => JSON::Any)
+        error     = nil
         unless args_text.strip.empty?
           begin
             parsed = JSON.parse(args_text)
@@ -220,10 +220,10 @@ module LLM::AI
       end
 
       private def self.handle_tool_delta(tool_call : JSON::Any, state : StreamState) : Nil
-        index = tool_call["index"]?.try(&.as_i64?)
-        id = tool_call["id"]?.try(&.as_s?)
+        index    = tool_call["index"]?.try(&.as_i64?)
+        id       = tool_call["id"]?.try(&.as_s?)
         function = tool_call["function"]?
-        name = function.try { |f| f["name"]?.try(&.as_s?) }
+        name     = function.try { |f| f["name"]?.try(&.as_s?) }
         idx = if (i = index) && (found = state.tool_by_index[i]?)
                 found
               elsif (tool_id = id) && (found = state.tool_by_id[tool_id]?)
@@ -231,8 +231,8 @@ module LLM::AI
               else
                 new_tool_block(index, id, name, state)
               end
-        tool = state.blocks[idx].as(ToolCall)
-        resolved_id = tool.id.empty? ? (id || "") : tool.id
+        tool          = state.blocks[idx].as(ToolCall)
+        resolved_id   = tool.id.empty? ? (id || "") : tool.id
         resolved_name = tool.name.empty? ? (name || "") : tool.name
         if args_delta = function.try { |f| f["arguments"]?.try(&.as_s?) }
           partial = state.partial_args[idx]? || ""
@@ -357,7 +357,7 @@ module LLM::AI
       private def self.append_reasoning_detail(detail : JSON::Any, details : Array(JSON::Any)) : Nil
         if last = details.last?
           last_type = last["type"].as_s
-          type = detail["type"].as_s
+          type      = detail["type"].as_s
           if type == last_type
             case type
             when "reasoning.text"
@@ -406,16 +406,16 @@ module LLM::AI
 
       private def self.parse_usage(usage : JSON::Any?, model : Model) : Usage?
         return nil unless usage
-        prompt = usage["prompt_tokens"]?.try(&.as_i?) || 0
+        prompt     = usage["prompt_tokens"]?.try(&.as_i?) || 0
         completion = usage["completion_tokens"]?.try(&.as_i?) || 0
-        details = usage["prompt_tokens_details"]?
+        details    = usage["prompt_tokens_details"]?
         cached = details.try { |d| d["cached_tokens"]?.try(&.as_i?) } ||
                  usage["prompt_cache_hit_tokens"]?.try(&.as_i?) ||
                  usage["cached_tokens"]?.try(&.as_i?) || 0
         cache_write = details.try { |d| d["cache_write_tokens"]?.try(&.as_i?) } || 0
-        reasoning = usage["completion_tokens_details"]?.try { |d| d["reasoning_tokens"]?.try(&.as_i?) } || 0
-        input = Math.max(prompt - cached - cache_write, 0)
-        total = input + completion + cached + cache_write
+        reasoning   = usage["completion_tokens_details"]?.try { |d| d["reasoning_tokens"]?.try(&.as_i?) } || 0
+        input       = Math.max(prompt - cached - cache_write, 0)
+        total       = input + completion + cached + cache_write
         base = Usage.new(
           input.to_i32,
           completion.to_i32,
@@ -628,9 +628,9 @@ module LLM::AI
       end
 
       private def self.assistant_message(json : JSON::Builder, model : Model, message : AssistantMessage) : Nil
-        text = message.content.select(TextContent).map(&.text).reject(&.strip.empty?).join("")
-        tool_calls = message.content.select(ToolCall)
-        thinking = message.content.select(ThinkingContent).reject(&.thinking.strip.empty?)
+        text          = message.content.select(TextContent).map(&.text).reject(&.strip.empty?).join("")
+        tool_calls    = message.content.select(ToolCall)
+        thinking      = message.content.select(ThinkingContent).reject(&.thinking.strip.empty?)
         thinking_text = thinking.map(&.thinking).join("\n\n")
         return if text.empty? && tool_calls.empty? && thinking.empty?
         preserved_details = nil
@@ -789,7 +789,7 @@ module LLM::AI
 
       private def self.system_update_text(message : SystemMessage) : String
         parts = [] of String
-        text = content_text(message.content)
+        text  = content_text(message.content)
         parts << text unless text.empty?
         message.sections.try &.each do |name, value|
           parts << (value ? "Updated system prompt section \"#{name}\":\n\n#{value}" : "Removed system prompt section \"#{name}\".")

@@ -21,7 +21,7 @@ end
 describe LLM::AI::SSE::Reader do
   it "parses data-only events" do
     reader = sse_reader("data: {\"a\":1}\n\n")
-    event = reader.next
+    event  = reader.next
     event.should_not be_nil
     event.not_nil!.data.should eq("{\"a\":1}")
     reader.next.should be_nil
@@ -64,14 +64,14 @@ describe LLM::AI::SSE::Reader do
 
   it "preserves multibyte data through one-byte reads" do
     reader = LLM::AI::SSE::Reader.new(OneByteIO.new(IO::Memory.new("data: 日本語テスト\n\n")))
-    event = reader.next
+    event  = reader.next
     event.should_not be_nil
     event.not_nil!.data.should eq("日本語テスト")
   end
 
   it "terminates after events with id lines" do
     reader = sse_reader("id: 1\ndata: x")
-    event = reader.next
+    event  = reader.next
     event.should_not be_nil
     event.not_nil!.data.should eq("x")
     reader.next.should be_nil

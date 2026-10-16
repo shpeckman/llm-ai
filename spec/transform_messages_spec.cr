@@ -34,8 +34,8 @@ describe LLM::AI::Transform do
   end
 
   it "converts thinking to text for non-reasoning targets" do
-    message = assistant(LLM::AI::ThinkingContent.new("hmm", "sig"))
-    context = LLM::AI::Context.new([message] of LLM::AI::Message)
+    message   = assistant(LLM::AI::ThinkingContent.new("hmm", "sig"))
+    context   = LLM::AI::Context.new([message] of LLM::AI::Message)
     converted = LLM::AI::Transform.normalize(context, model(false)).messages[0].as(LLM::AI::AssistantMessage)
     converted.content[0].should eq LLM::AI::TextContent.new("hmm")
     kept = LLM::AI::Transform.normalize(context, model(true)).messages[0].as(LLM::AI::AssistantMessage)
@@ -43,8 +43,8 @@ describe LLM::AI::Transform do
   end
 
   it "inserts a synthetic error tool result for orphaned tool calls" do
-    call = LLM::AI::ToolCall.new("t1", "lookup", JSON.parse("{}"), nil, nil, nil)
-    context = LLM::AI::Context.new([assistant(call)] of LLM::AI::Message)
+    call       = LLM::AI::ToolCall.new("t1", "lookup", JSON.parse("{}"), nil, nil, nil)
+    context    = LLM::AI::Context.new([assistant(call)] of LLM::AI::Message)
     normalized = LLM::AI::Transform.normalize(context, model(true))
     normalized.messages.size.should eq 2
     result = normalized.messages[1].should be_a(LLM::AI::ToolResultMessage)
@@ -54,16 +54,16 @@ describe LLM::AI::Transform do
   end
 
   it "normalizes tool call ids" do
-    call = LLM::AI::ToolCall.new("a b!c" + "x" * 100, "lookup", JSON.parse("{}"), nil, nil, nil)
-    context = LLM::AI::Context.new([assistant(call)] of LLM::AI::Message)
+    call       = LLM::AI::ToolCall.new("a b!c" + "x" * 100, "lookup", JSON.parse("{}"), nil, nil, nil)
+    context    = LLM::AI::Context.new([assistant(call)] of LLM::AI::Message)
     normalized = LLM::AI::Transform.normalize(context, model(true))
-    first = normalized.messages[0].as(LLM::AI::AssistantMessage)
+    first      = normalized.messages[0].as(LLM::AI::AssistantMessage)
     first.content[0].as(LLM::AI::ToolCall).id.should eq "a_b_c" + "x" * (64 - 5)
   end
 
   it "replaces images for non-vision targets" do
-    message = LLM::AI::UserMessage.new([LLM::AI::ImageContent.new("abc", "image/png")] of LLM::AI::ContentBlock, Time.utc)
-    context = LLM::AI::Context.new([message] of LLM::AI::Message)
+    message    = LLM::AI::UserMessage.new([LLM::AI::ImageContent.new("abc", "image/png")] of LLM::AI::ContentBlock, Time.utc)
+    context    = LLM::AI::Context.new([message] of LLM::AI::Message)
     normalized = LLM::AI::Transform.normalize(context, model(true, vision: false))
     normalized.messages[0].as(LLM::AI::UserMessage).content.as(Array(LLM::AI::ContentBlock))[0].should eq(
       LLM::AI::TextContent.new("(image omitted: model does not support images)")
@@ -71,8 +71,8 @@ describe LLM::AI::Transform do
   end
 
   it "inserts synthetic tool results before the next user turn" do
-    call = LLM::AI::ToolCall.new("t1", "lookup", JSON.parse("{}"), nil, nil, nil)
-    context = LLM::AI::Context.new([assistant(call), user_text("hi")] of LLM::AI::Message)
+    call       = LLM::AI::ToolCall.new("t1", "lookup", JSON.parse("{}"), nil, nil, nil)
+    context    = LLM::AI::Context.new([assistant(call), user_text("hi")] of LLM::AI::Message)
     normalized = LLM::AI::Transform.normalize(context, model(true))
     normalized.messages.size.should eq 3
     normalized.messages[0].should be_a(LLM::AI::AssistantMessage)
@@ -86,7 +86,7 @@ describe LLM::AI::Transform do
     result = LLM::AI::ToolResultMessage.new(
       "a b!c", "lookup", [LLM::AI::TextContent.new("ok")] of LLM::AI::ContentBlock, Time.utc
     )
-    context = LLM::AI::Context.new([assistant(call), result] of LLM::AI::Message)
+    context    = LLM::AI::Context.new([assistant(call), result] of LLM::AI::Message)
     normalized = LLM::AI::Transform.normalize(context, model(true))
     normalized.messages.size.should eq 2
     normalized.messages[0].as(LLM::AI::AssistantMessage).content[0].as(LLM::AI::ToolCall).id.should eq "a_b_c"

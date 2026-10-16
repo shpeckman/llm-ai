@@ -102,18 +102,18 @@ describe LLM::AI do
         timestamp: ts,
       )
       events = {
-        LLM::AI::StreamEvent::Start.new(partial)                        => "start",
-        LLM::AI::StreamEvent::TextStart.new(0, partial)                 => "text_start",
-        LLM::AI::StreamEvent::TextDelta.new(0, "hel", partial)          => "text_delta",
-        LLM::AI::StreamEvent::TextEnd.new(0, partial)                   => "text_end",
-        LLM::AI::StreamEvent::ThinkingStart.new(0, partial)             => "thinking_start",
-        LLM::AI::StreamEvent::ThinkingDelta.new(0, "th", partial)       => "thinking_delta",
-        LLM::AI::StreamEvent::ThinkingEnd.new(0, partial)               => "thinking_end",
-        LLM::AI::StreamEvent::ToolCallStart.new(0, partial)             => "toolcall_start",
-        LLM::AI::StreamEvent::ToolCallDelta.new(0, partial)             => "toolcall_delta",
-        LLM::AI::StreamEvent::ToolCallEnd.new(0, partial)               => "toolcall_end",
+        LLM::AI::StreamEvent::Start.new(partial)                           => "start",
+        LLM::AI::StreamEvent::TextStart.new(0, partial)                    => "text_start",
+        LLM::AI::StreamEvent::TextDelta.new(0, "hel", partial)             => "text_delta",
+        LLM::AI::StreamEvent::TextEnd.new(0, partial)                      => "text_end",
+        LLM::AI::StreamEvent::ThinkingStart.new(0, partial)                => "thinking_start",
+        LLM::AI::StreamEvent::ThinkingDelta.new(0, "th", partial)          => "thinking_delta",
+        LLM::AI::StreamEvent::ThinkingEnd.new(0, partial)                  => "thinking_end",
+        LLM::AI::StreamEvent::ToolCallStart.new(0, partial)                => "toolcall_start",
+        LLM::AI::StreamEvent::ToolCallDelta.new(0, partial)                => "toolcall_delta",
+        LLM::AI::StreamEvent::ToolCallEnd.new(0, partial)                  => "toolcall_end",
         LLM::AI::StreamEvent::Done.new(LLM::AI::StopReason::Stop, partial) => "done",
-        LLM::AI::StreamEvent::Error.new(:error, partial)                => "error",
+        LLM::AI::StreamEvent::Error.new(:error, partial)                   => "error",
       }
       events.each do |event, type_name|
         json = event.to_json

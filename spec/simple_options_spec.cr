@@ -4,9 +4,9 @@ require "../src/llm-ai"
 
 private def model(max_tokens : Int32, reasoning : Bool = true,
                   thinking_level_map : Hash(String, String?) = Hash(String, String?).new,
-                  force_adaptive : Bool = false,
-                  sampling_params : Hash(String, JSON::Any)? = nil,
-                  by_level : Hash(String, Hash(String, JSON::Any))? = nil) : LLM::AI::Model
+                  force_adaptive     : Bool                  = false,
+                  sampling_params    : Hash(String, JSON::Any)? = nil,
+                  by_level           : Hash(String, Hash(String, JSON::Any))? = nil) : LLM::AI::Model
   compat = LLM::AI::Compat.new(force_adaptive_thinking: force_adaptive)
   LLM::AI::Model.new("m", "m", "p", "https://x", LLM::AI::ApiKind::OpenaiCompletions,
     [LLM::AI::InputKind::Text], 1000, max_tokens, reasoning,

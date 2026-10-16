@@ -42,7 +42,7 @@ describe LLM::AI::ModelData do
   end
 
   it "marks the 5.5 generation as adaptive thinking" do
-    models = LLM::AI::ModelData.load("anthropic")
+    models   = LLM::AI::ModelData.load("anthropic")
     adaptive = models.select(&.compat.force_adaptive_thinking)
     adaptive.map(&.id).should eq ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
     adaptive.each do |model|

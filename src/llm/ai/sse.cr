@@ -1,4 +1,4 @@
-# src/pi_ai/sse.cr
+# src/llm/ai/sse.cr
 module LLM::AI
   module SSE
     struct Event
@@ -10,18 +10,18 @@ module LLM::AI
     end
 
     class Reader
-      @id : String?
-      @name : String?
-      @data : Array(String)
+      @id     : String?
+      @name   : String?
+      @data   : Array(String)
       @buffer : String
-      @eof : Bool
+      @eof    : Bool
 
       def initialize(@io : IO)
-        @id = nil
-        @name = nil
-        @data = [] of String
+        @id     = nil
+        @name   = nil
+        @data   = [] of String
         @buffer = ""
-        @eof = false
+        @eof    = false
       end
 
       def next : Event?
@@ -47,11 +47,11 @@ module LLM::AI
 
       private def next_line : String?
         loop do
-          lf = @buffer.byte_index('\n'.ord)
-          cr = @buffer.byte_index('\r'.ord)
+          lf         = @buffer.byte_index('\n'.ord)
+          cr         = @buffer.byte_index('\r'.ord)
           terminator = lf.nil? ? cr : (cr.nil? ? lf : Math.min(lf, cr))
           if terminator
-            line = @buffer.byte_slice(0, terminator)
+            line    = @buffer.byte_slice(0, terminator)
             advance = terminator + 1
             if @buffer.byte_at(terminator) == '\r'.ord && advance < @buffer.bytesize && @buffer.byte_at(advance) == '\n'.ord
               advance += 1
@@ -61,7 +61,7 @@ module LLM::AI
           end
           break if @eof
           chunk = Bytes.new(4096)
-          read = @io.read(chunk)
+          read  = @io.read(chunk)
           if read == 0
             @eof = true
           else
@@ -69,7 +69,7 @@ module LLM::AI
           end
         end
         return nil if @buffer.empty?
-        line = @buffer
+        line    = @buffer
         @buffer = ""
         line
       end
@@ -82,7 +82,7 @@ module LLM::AI
         data = @data.join('\n')
         name = @name
         @data.clear
-        @id = nil
+        @id   = nil
         @name = nil
         Event.new(name, data)
       end

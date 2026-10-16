@@ -22,7 +22,7 @@ describe LLM::AI::Http do
     api = ScriptedApi.new([
       {429, {"retry-after-ms" => "10"}, "busy"},
       {429, {"retry-after-ms" => "10"}, "busy"},
-      {200, {} of String => String, "ok"},
+      {200, {} of String => String,     "ok"},
     ]).start
     begin
       captured = ""
@@ -96,7 +96,7 @@ describe LLM::AI::Http do
 
   it "retries network errors and raises with status 0 after max_retries" do
     server = TCPServer.new("127.0.0.1", 0)
-    port = server.local_address.port
+    port   = server.local_address.port
     server.close
     elapsed = Time.measure do
       error = expect_raises(LLM::AI::Http::Error) do
@@ -111,8 +111,8 @@ describe LLM::AI::Http do
   end
 
   it "aborts during a network error without retrying" do
-    server = TCPServer.new("127.0.0.1", 0)
-    port = server.local_address.port
+    server  = TCPServer.new("127.0.0.1", 0)
+    port    = server.local_address.port
     accepts = Channel(Int32).new
     spawn do
       count = 0
@@ -162,7 +162,7 @@ describe LLM::AI::Http do
   it "honors fractional retry-after seconds" do
     api = ScriptedApi.new([
       {429, {"retry-after" => "1.5"}, "busy"},
-      {200, {} of String => String, "ok"},
+      {200, {} of String => String,   "ok"},
     ]).start
     begin
       captured = ""
@@ -183,7 +183,7 @@ describe LLM::AI::Http do
     future = (Time.utc + 2.seconds).to_rfc2822
     api = ScriptedApi.new([
       {429, {"retry-after" => future}, "busy"},
-      {200, {} of String => String, "ok"},
+      {200, {} of String => String,    "ok"},
     ]).start
     begin
       captured = ""
@@ -203,7 +203,7 @@ describe LLM::AI::Http do
   it "retries when x-should-retry is true regardless of status" do
     api = ScriptedApi.new([
       {400, {"x-should-retry" => "true"}, "bad request"},
-      {200, {} of String => String, "ok"},
+      {200, {} of String => String,       "ok"},
     ]).start
     begin
       captured = ""

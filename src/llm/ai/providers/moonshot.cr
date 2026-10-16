@@ -1,6 +1,5 @@
 # src/pi_ai/providers/moonshot.cr
-module LLM::AI
-  module MoonshotProvider
+  module LLM::AI::MoonshotProvider
     def self.provider : Provider
       Provider.new(
         "moonshot", "Moonshot", "https://api.moonshot.ai", {} of String => String,
@@ -14,4 +13,3 @@ module LLM::AI
       Api::OpenAICompletions.stream(model, context, options, auth, abort)
     end
   end
-end

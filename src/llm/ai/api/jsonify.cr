@@ -45,7 +45,7 @@ module LLM::AI::Jsonify
       end
     when Hash(String, JSON::Any)
       json.object do
-        raw.keys.sort.each { |key| json.field(key) { canonical(json, raw[key]) } }
+        raw.keys.sort!.each { |key| json.field(key) { canonical(json, raw[key]) } }
       end
     end
   end

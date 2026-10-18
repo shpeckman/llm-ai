@@ -155,7 +155,7 @@ describe LLM::AI::Auth::Anthropic do
       ensure
         client.close
       end
-      credential = result.receive.should be_a(LLM::AI::OAuthCredential)
+      result.receive.should be_a(LLM::AI::OAuthCredential)
       body = JSON.parse(api.requests.first[2])
       body["code"].should eq "callback-code"
     ensure

@@ -329,6 +329,16 @@ end
   `LLM::AI::FileCredentialStore`, `LLM::AI::CredentialStore`,
   `LLM::AI::Auth::Interaction`, `LLM::AI::Auth::CLIInteraction`.
 
+## Development
+
+Run the specs and the linter:
+
+```console
+shards install
+crystal spec
+ameba
+```
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

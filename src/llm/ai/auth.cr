@@ -137,7 +137,7 @@ module LLM::AI::Auth
       next current if current.expires - Time.utc.to_unix_ms > overrides.min_oauth_validity_ms
       begin
         refresh_bounded(oauth_auth, current, overrides.refresh_timeout)
-      rescue ex : DeadCredential
+      rescue _ex : DeadCredential
         nil
       rescue ex : Error
         refresh_failure = ex

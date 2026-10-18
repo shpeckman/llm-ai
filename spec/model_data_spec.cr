@@ -74,12 +74,15 @@ describe LLM::AI::ModelData do
   end
 
   it "parses allowed_fallback_models with cost and tiers" do
-    compat = LLM::AI::ModelData.build_compat(JSON.parse(%({
-      "allowed_fallback_models": [
-        {"provider": "anthropic", "model": "claude-opus-4-8", "cost": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_1h": 10.0}},
-        {"provider": "deepseek", "model": "deepseek-chat", "cost": {"input": 1.0, "output": 2.0, "cache_read": 0.1, "cache_write": 0.2, "tiers": [{"above": 100000, "cost": {"input": 0.5, "output": 1.0, "cache_read": 0.05, "cache_write": 0.1}}]}}
-      ]
-    })))
+    compat = LLM::AI::ModelData.build_compat(JSON.parse(<<-JSON
+      {
+        "allowed_fallback_models": [
+          {"provider": "anthropic", "model": "claude-opus-4-8", "cost": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_1h": 10.0}},
+          {"provider": "deepseek", "model": "deepseek-chat", "cost": {"input": 1.0, "output": 2.0, "cache_read": 0.1, "cache_write": 0.2, "tiers": [{"above": 100000, "cost": {"input": 0.5, "output": 1.0, "cache_read": 0.05, "cache_write": 0.1}}]}}
+        ]
+      }
+      JSON
+    ))
     compat.allowed_fallback_models.size.should eq 2
     first = compat.allowed_fallback_models[0]
     first.provider.should eq "anthropic"

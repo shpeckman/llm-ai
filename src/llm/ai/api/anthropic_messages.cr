@@ -409,7 +409,7 @@ module LLM::AI::Api::AnthropicMessages
     end
     betas = beta_features(model, context, resolved, oauth)
     headers["anthropic-beta"] = betas.join(", ") unless betas.empty?
-    options.headers.try &.each { |key, value| headers[key] = value }
+    options.headers.try &.each { |name, value| headers[name] = value }
     headers
   end
 

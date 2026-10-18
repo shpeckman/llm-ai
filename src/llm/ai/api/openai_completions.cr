@@ -407,11 +407,11 @@ module LLM::AI::Api::OpenAICompletions
     prompt = usage["prompt_tokens"]?.try(&.as_i?) || 0
     completion = usage["completion_tokens"]?.try(&.as_i?) || 0
     details = usage["prompt_tokens_details"]?
-    cached = details.try { |d| d["cached_tokens"]?.try(&.as_i?) } ||
+    cached = details.try { |detail| detail["cached_tokens"]?.try(&.as_i?) } ||
              usage["prompt_cache_hit_tokens"]?.try(&.as_i?) ||
              usage["cached_tokens"]?.try(&.as_i?) || 0
-    cache_write = details.try { |d| d["cache_write_tokens"]?.try(&.as_i?) } || 0
-    reasoning = usage["completion_tokens_details"]?.try { |d| d["reasoning_tokens"]?.try(&.as_i?) } || 0
+    cache_write = details.try { |detail| detail["cache_write_tokens"]?.try(&.as_i?) } || 0
+    reasoning = usage["completion_tokens_details"]?.try { |detail| detail["reasoning_tokens"]?.try(&.as_i?) } || 0
     input = Math.max(prompt - cached - cache_write, 0)
     total = input + completion + cached + cache_write
     base = Usage.new(

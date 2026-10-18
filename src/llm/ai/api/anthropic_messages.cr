@@ -534,10 +534,10 @@ module LLM::AI::Api::AnthropicMessages
     return if blocks.empty?
     json.field "system" do
       json.array do
-        blocks.each do |text|
+        blocks.each do |text_block|
           json.object do
             json.field "type", "text"
-            json.field "text", text
+            json.field "text", text_block
             write_cache_control(json, retention, model)
           end
         end
@@ -663,8 +663,6 @@ module LLM::AI::Api::AnthropicMessages
               "data"       => JSON::Any.new(block.data),
             }),
           })
-        else
-          nil
         end
       end
       return if blocks.empty?

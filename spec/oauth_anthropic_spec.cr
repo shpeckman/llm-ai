@@ -18,11 +18,9 @@ end
 private def run_login(interaction : LLM::AI::Auth::Interaction, no_browser : Bool, hosts : LLM::AI::Auth::AuthHosts) : Channel(LLM::AI::OAuthCredential | Exception)
   result = Channel(LLM::AI::OAuthCredential | Exception).new
   spawn do
-    begin
-      result.send LLM::AI::Auth::Anthropic.login(interaction, no_browser, hosts)
-    rescue ex
-      result.send ex
-    end
+    result.send LLM::AI::Auth::Anthropic.login(interaction, no_browser, hosts)
+  rescue ex
+    result.send ex
   end
   result
 end

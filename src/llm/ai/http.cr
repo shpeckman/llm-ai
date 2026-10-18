@@ -97,7 +97,7 @@ module LLM::AI::Http
   end
 
   private def self.retry_delay(error : Error, attempt : Int32) : Time::Span
-    if (ms = error.headers["retry-after-ms"]?)
+    if ms = error.headers["retry-after-ms"]?
       begin
         value = ms.to_f
         if value > MAX_RETRY_DELAY_SECONDS * 1000
@@ -107,7 +107,7 @@ module LLM::AI::Http
       rescue ArgumentError
       end
     end
-    if (secs = error.headers["retry-after"]?)
+    if secs = error.headers["retry-after"]?
       value = retry_after_seconds(secs)
       if value
         if value > MAX_RETRY_DELAY_SECONDS

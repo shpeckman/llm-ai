@@ -13,7 +13,7 @@ end
 private def oauth_auth(refresh_proc : Proc(String, LLM::AI::Auth::AuthHosts?, LLM::AI::OAuthCredential)) : LLM::AI::Auth::OAuthAuth
   LLM::AI::Auth::OAuthAuth.new(
     "Test OAuth", true, "Sign in with Test",
-    ->(interaction : LLM::AI::Auth::Interaction, hosts : LLM::AI::Auth::AuthHosts?) { raise "login not expected" },
+    ->(_interaction : LLM::AI::Auth::Interaction, _hosts : LLM::AI::Auth::AuthHosts?) { raise "login not expected" },
     refresh_proc,
   )
 end
@@ -39,7 +39,7 @@ describe LLM::AI::Auth do
   it "stored oauth credential is returned fresh when not expiring" do
     with_temp_store do |store, _, _|
       calls = 0
-      refresh = ->(token : String, hosts : LLM::AI::Auth::AuthHosts?) {
+      refresh = ->(_token : String, _hosts : LLM::AI::Auth::AuthHosts?) {
         calls += 1
         oauth_cred(Time.utc.to_unix_ms + 3_600_000)
       }
@@ -55,7 +55,7 @@ describe LLM::AI::Auth do
   it "refreshes an expiring oauth credential exactly once under concurrency" do
     with_temp_store do |store, _, _|
       calls = 0
-      refresh = ->(token : String, hosts : LLM::AI::Auth::AuthHosts?) {
+      refresh = ->(_token : String, _hosts : LLM::AI::Auth::AuthHosts?) {
         calls += 1
         oauth_cred(Time.utc.to_unix_ms + 3_600_000)
       }
@@ -79,7 +79,7 @@ describe LLM::AI::Auth do
   it "deletes the credential when refresh fails permanently" do
     with_temp_store do |store, _, _|
       with_env({"TEST_API_KEY" => "env-key"}) do
-        refresh = ->(token : String, hosts : LLM::AI::Auth::AuthHosts?) {
+        refresh = ->(_token : String, _hosts : LLM::AI::Auth::AuthHosts?) {
           raise LLM::AI::Auth::DeadCredential.new("dead")
         }
         store.modify("deepseek") { oauth_cred(Time.utc.to_unix_ms + 1_000) }
@@ -95,7 +95,7 @@ describe LLM::AI::Auth do
   it "keeps the credential and raises on a transient refresh failure without env fallthrough" do
     with_temp_store do |store, _, _|
       with_env({"TEST_API_KEY" => "env-key"}) do
-        refresh = ->(token : String, hosts : LLM::AI::Auth::AuthHosts?) {
+        refresh = ->(_token : String, _hosts : LLM::AI::Auth::AuthHosts?) {
           raise LLM::AI::Auth::Error.new("transient failure")
         }
         store.modify("deepseek") { oauth_cred(Time.utc.to_unix_ms + 1_000) }
@@ -112,7 +112,7 @@ describe LLM::AI::Auth do
   it "keeps the credential and raises when the refresh times out" do
     with_temp_store do |store, _, _|
       with_env({"TEST_API_KEY" => "env-key"}) do
-        refresh = ->(token : String, hosts : LLM::AI::Auth::AuthHosts?) {
+        refresh = ->(_token : String, _hosts : LLM::AI::Auth::AuthHosts?) {
           sleep 5.seconds
           oauth_cred(Time.utc.to_unix_ms + 3_600_000)
         }

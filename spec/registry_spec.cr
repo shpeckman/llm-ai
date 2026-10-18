@@ -65,7 +65,7 @@ describe LLM::AI::Models do
     openai_payload["model"].should eq "deepseek-flash"
     anthropic_payload = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(models.model("anthropic", "claude-opus-4-5"), context, LLM::AI::StreamOptions.new, false))
     anthropic_payload["model"].should eq "claude-opus-4-5"
-    anthropic_payload["stream"].should eq true
+    anthropic_payload["stream"].should be_true
   end
 
   it "logs in and out through the ergonomic auth surface" do

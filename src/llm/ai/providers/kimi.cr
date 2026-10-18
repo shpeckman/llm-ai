@@ -6,8 +6,8 @@ module LLM::AI::KimiProvider
       Auth::ProviderAuth.new(
         Auth::ApiKeyAuth.new("Kimi API key", ["KIMI_API_KEY"]),
         Auth::OAuthAuth.new("Kimi", true, "Kimi subscription login",
-          ->(interaction : Auth::Interaction, hosts : Auth::AuthHosts?) { Auth::Kimi.login(interaction) },
-          ->(refresh_token : String, hosts : Auth::AuthHosts?) { Auth::Kimi.refresh(refresh_token) }),
+          ->(interaction : Auth::Interaction, _hosts : Auth::AuthHosts?) { Auth::Kimi.login(interaction) },
+          ->(refresh_token : String, _hosts : Auth::AuthHosts?) { Auth::Kimi.refresh(refresh_token) }),
       ),
       ModelData.load("kimi-coding"),
       ->stream_for(Model, Context, StreamOptions, Auth::AuthResult, AbortHandle?),

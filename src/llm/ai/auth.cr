@@ -151,11 +151,9 @@ module LLM::AI::Auth
   private def self.refresh_bounded(oauth_auth : OAuthAuth, credential : OAuthCredential, timeout_span : Time::Span) : OAuthCredential
     channel = Channel(OAuthCredential | Exception).new
     spawn do
-      begin
-        channel.send(oauth_auth.refresh.call(credential.refresh, nil))
-      rescue ex
-        channel.send(ex) rescue nil
-      end
+      channel.send(oauth_auth.refresh.call(credential.refresh, nil))
+    rescue ex
+      channel.send(ex) rescue nil
     end
     value = select
     when result = channel.receive

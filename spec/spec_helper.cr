@@ -82,11 +82,9 @@ class MockApi
     unless @started || @closed
       @started = true
       spawn do
-        begin
-          @server.listen
-        rescue ex
-          raise ex unless @closed
-        end
+        @server.listen
+      rescue ex
+        raise ex unless @closed
       end
     end
     self
@@ -164,11 +162,9 @@ class ScriptedApi
     unless @started || @closed
       @started = true
       spawn do
-        begin
-          @server.listen
-        rescue ex
-          raise ex unless @closed
-        end
+        @server.listen
+      rescue ex
+        raise ex unless @closed
       end
     end
     self

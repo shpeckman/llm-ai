@@ -201,8 +201,8 @@ describe LLM::AI::Api::OpenAICompletions do
       kimi_model, user_context, LLM::AI::StreamOptions.new(thinking_level: "high")))
     payload.as_h.has_key?("max_completion_tokens").should be_true
     payload.as_h.has_key?("max_tokens").should be_false
-    payload["store"].should eq false
-    payload["stream_options"]["include_usage"].should eq true
+    payload["store"].should be_false
+    payload["stream_options"]["include_usage"].should be_true
     payload["reasoning_effort"].should eq "high"
     payload.as_h.has_key?("thinking").should be_false
   end

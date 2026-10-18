@@ -29,17 +29,15 @@ end
 private def run_kimi_login(interaction, api, interval_seconds = 1, slow_down_seconds = 1) : Channel(LLM::AI::OAuthCredential | Exception)
   result = Channel(LLM::AI::OAuthCredential | Exception).new
   spawn do
-    begin
-      result.send LLM::AI::Auth::Kimi.login(
-        interaction,
-        auth_host: kimi_host(api),
-        interval_seconds: interval_seconds,
-        slow_down_seconds: slow_down_seconds,
-        wait_before_first_poll: true,
-      )
-    rescue ex
-      result.send ex
-    end
+    result.send LLM::AI::Auth::Kimi.login(
+      interaction,
+      auth_host: kimi_host(api),
+      interval_seconds: interval_seconds,
+      slow_down_seconds: slow_down_seconds,
+      wait_before_first_poll: true,
+    )
+  rescue ex
+    result.send ex
   end
   result
 end

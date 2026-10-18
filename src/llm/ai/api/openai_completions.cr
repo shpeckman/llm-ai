@@ -221,7 +221,7 @@ module LLM::AI::Api::OpenAICompletions
     index = tool_call["index"]?.try(&.as_i64?)
     id = tool_call["id"]?.try(&.as_s?)
     function = tool_call["function"]?
-    name = function.try { |func| fn["name"]?.try(&.as_s?) }
+    name = function.try { |func| func["name"]?.try(&.as_s?) }
     idx = if (i = index) && (found = state.tool_by_index[i]?)
             found
           elsif (tool_id = id) && (found = state.tool_by_id[tool_id]?)
@@ -232,7 +232,7 @@ module LLM::AI::Api::OpenAICompletions
     tool = state.blocks[idx].as(ToolCall)
     resolved_id = tool.id.empty? ? (id || "") : tool.id
     resolved_name = tool.name.empty? ? (name || "") : tool.name
-    if args_delta = function.try { |func| fn["arguments"]?.try(&.as_s?) }
+    if args_delta = function.try { |func| func["arguments"]?.try(&.as_s?) }
       partial = state.partial_args[idx]? || ""
       partial += args_delta
       state.partial_args[idx] = partial

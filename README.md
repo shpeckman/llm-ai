@@ -235,7 +235,7 @@ if call = message.content.select(LLM::AI::ToolCall).first?
   result = LLM::AI::ToolResultMessage.new(
     call.id,
     call.name,
-    [LLM::AI::TextContent.new("22\u00B0C, sunny")],
+    [LLM::AI::TextContent.new("22\u00B0C, sunny")] of LLM::AI::ContentBlock,
     Time.utc,
   )
   followup = LLM::AI::Context.new(

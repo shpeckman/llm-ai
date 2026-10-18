@@ -25,10 +25,10 @@ module LLM::AI::PartialJson
   end
 
   private def scan(input : String) : {String, Array(Char), Bool}
-    io        = String::Builder.new
-    stack     = [] of Char
+    io = String::Builder.new
+    stack = [] of Char
     in_string = false
-    escaped   = false
+    escaped = false
     input.each_char do |char|
       io << char
       if in_string

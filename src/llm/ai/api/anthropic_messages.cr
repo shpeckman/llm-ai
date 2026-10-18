@@ -39,41 +39,41 @@ module LLM::AI::Api::AnthropicMessages
   }
 
   class StreamState
-    getter model               : Model
-    getter options             : StreamOptions
-    getter tools               : Array(Tool)
-    getter oauth               : Bool
-    getter stream              : MessageStream
-    property blocks            : Array(ContentBlock)
-    property block_by_index    : Hash(Int32, Int32)
-    property partial_args      : Hash(Int32, String)
-    property usage             : Usage?
-    property stop_reason       : StopReason
-    property raw_stop_reason   : String?
-    property error_message     : String?
-    property response_id       : String?
-    property response_model    : String?
+    getter model : Model
+    getter options : StreamOptions
+    getter tools : Array(Tool)
+    getter oauth : Bool
+    getter stream : MessageStream
+    property blocks : Array(ContentBlock)
+    property block_by_index : Hash(Int32, Int32)
+    property partial_args : Hash(Int32, String)
+    property usage : Usage?
+    property stop_reason : StopReason
+    property raw_stop_reason : String?
+    property error_message : String?
+    property response_id : String?
+    property response_model : String?
     property saw_message_start : Bool
-    property saw_message_stop  : Bool
-    property finished          : Bool
-    property cost_model        : Model
-    getter started_at          : Time::Instant
+    property saw_message_stop : Bool
+    property finished : Bool
+    property cost_model : Model
+    getter started_at : Time::Instant
 
     def initialize(@model : Model, @options : StreamOptions, @tools : Array(Tool), @oauth : Bool, @stream : MessageStream)
-      @blocks            = [] of ContentBlock
-      @block_by_index    = {} of Int32 => Int32
-      @partial_args      = {} of Int32 => String
-      @usage             = nil
-      @stop_reason       = StopReason::Pending
-      @raw_stop_reason   = nil
-      @error_message     = nil
-      @response_id       = nil
-      @response_model    = nil
+      @blocks = [] of ContentBlock
+      @block_by_index = {} of Int32 => Int32
+      @partial_args = {} of Int32 => String
+      @usage = nil
+      @stop_reason = StopReason::Pending
+      @raw_stop_reason = nil
+      @error_message = nil
+      @response_id = nil
+      @response_model = nil
       @saw_message_start = false
-      @saw_message_stop  = false
-      @finished          = false
-      @cost_model        = @model
-      @started_at        = Time.instant
+      @saw_message_stop = false
+      @finished = false
+      @cost_model = @model
+      @started_at = Time.instant
     end
   end
 
@@ -84,7 +84,7 @@ module LLM::AI::Api::AnthropicMessages
   end
 
   def self.build_payload(model : Model, context : Context, options : StreamOptions, oauth : Bool) : String
-    resolved  = SimpleOptions.resolve(model, options)
+    resolved = SimpleOptions.resolve(model, options)
     retention = resolve_cache_retention(options)
     payload = JSON.build do |json|
       payload(json, model, context, options, resolved, retention, oauth)
@@ -257,16 +257,16 @@ module LLM::AI::Api::AnthropicMessages
   end
 
   private def self.parse_usage(usage : JSON::Any, state : StreamState) : Usage?
-    current        = state.usage
-    base           = current || Usage.new(0, 0, 0, 0, 0, UsageCost.new(0.0, 0.0, 0.0, 0.0, 0.0))
-    input          = usage["input_tokens"]?.try(&.as_i?) || base.input
-    output         = usage["output_tokens"]?.try(&.as_i?) || base.output
-    cache_read     = usage["cache_read_input_tokens"]?.try(&.as_i?) || base.cache_read
-    cache_write    = usage["cache_creation_input_tokens"]?.try(&.as_i?) || base.cache_write
+    current = state.usage
+    base = current || Usage.new(0, 0, 0, 0, 0, UsageCost.new(0.0, 0.0, 0.0, 0.0, 0.0))
+    input = usage["input_tokens"]?.try(&.as_i?) || base.input
+    output = usage["output_tokens"]?.try(&.as_i?) || base.output
+    cache_read = usage["cache_read_input_tokens"]?.try(&.as_i?) || base.cache_read
+    cache_write = usage["cache_creation_input_tokens"]?.try(&.as_i?) || base.cache_write
     cache_write_1h = usage["cache_creation"]?.try { |creation| creation["ephemeral_1h_input_tokens"]?.try(&.as_i?) } || base.cache_write_1h
-    reasoning      = usage["output_tokens_details"]?.try { |details| details["thinking_tokens"]?.try(&.as_i?) } || base.reasoning
-    total          = input + output + cache_read + cache_write
-    seed           = Usage.new(input, output, cache_read, cache_write, total, UsageCost.new(0.0, 0.0, 0.0, 0.0, 0.0), cache_write_1h, reasoning)
+    reasoning = usage["output_tokens_details"]?.try { |details| details["thinking_tokens"]?.try(&.as_i?) } || base.reasoning
+    total = input + output + cache_read + cache_write
+    seed = Usage.new(input, output, cache_read, cache_write, total, UsageCost.new(0.0, 0.0, 0.0, 0.0, 0.0), cache_write_1h, reasoning)
     Usage.new(seed.input, seed.output, seed.cache_read, seed.cache_write, seed.total_tokens,
       Pricing.calculate(state.cost_model, seed), seed.cache_write_1h, seed.reasoning)
   end
@@ -311,8 +311,8 @@ module LLM::AI::Api::AnthropicMessages
       state.blocks << ThinkingContent.new(REDACTED_TEXT, block["data"]?.try(&.as_s?), true)
       emit(StreamEvent::ThinkingStart.new(idx, snapshot(state)), state)
     when "tool_use"
-      name  = block["name"]?.try(&.as_s?) || ""
-      name  = from_claude_code_name(name, state.tools) if state.oauth
+      name = block["name"]?.try(&.as_s?) || ""
+      name = from_claude_code_name(name, state.tools) if state.oauth
       input = block["input"]? || JSON::Any.new({} of String => JSON::Any)
       state.blocks << ToolCall.new(block["id"]?.try(&.as_s?) || "", name, input)
       state.partial_args[idx] = ""
@@ -370,10 +370,10 @@ module LLM::AI::Api::AnthropicMessages
   end
 
   private def self.finalize_tool(idx : Int32, state : StreamState) : Nil
-    tool      = state.blocks[idx].as(ToolCall)
+    tool = state.blocks[idx].as(ToolCall)
     args_text = state.partial_args[idx]? || ""
-    args      = JSON::Any.new({} of String => JSON::Any)
-    error     = nil
+    args = JSON::Any.new({} of String => JSON::Any)
+    error = nil
     unless args_text.strip.empty?
       begin
         parsed = JSON.parse(args_text)
@@ -567,9 +567,9 @@ module LLM::AI::Api::AnthropicMessages
 
   private def self.build_messages(context : Context, model : Model, options : StreamOptions, retention : Symbol, oauth : Bool) : Array(JSON::Any)
     messages = [] of JSON::Any
-    pending  = [] of JSON::Any
-    native   = native_tool_changes(model, context)
-    index    = 0
+    pending = [] of JSON::Any
+    native = native_tool_changes(model, context)
+    index = 0
     while index < context.messages.size
       message = context.messages[index]
       case message
@@ -704,7 +704,7 @@ module LLM::AI::Api::AnthropicMessages
       return nil if block.thinking.strip.empty?
       return object_param({"type" => JSON::Any.new("text"), "text" => JSON::Any.new(block.thinking)})
     end
-    signature     = block.thinking_signature
+    signature = block.thinking_signature
     has_signature = !signature.nil? && !signature.not_nil!.strip.empty?
     return nil if block.thinking.strip.empty? && !has_signature
     if has_signature
@@ -762,7 +762,7 @@ module LLM::AI::Api::AnthropicMessages
   private def self.attach_last_cache_control(messages : Array(JSON::Any), retention : Symbol, model : Model) : Nil
     return if retention == :none || messages.empty?
     fields = messages.last.as_h
-    role   = fields["role"]?.try(&.as_s)
+    role = fields["role"]?.try(&.as_s)
     return unless role == "user" || role == "system"
     content = fields["content"]?
     return if content.nil?
@@ -866,7 +866,7 @@ module LLM::AI::Api::AnthropicMessages
       json.field "thinking" do
         json.object do
           json.field "type", "enabled"
-          budget  = resolved.thinking_budget_tokens || 1024
+          budget = resolved.thinking_budget_tokens || 1024
           ceiling = (resolved.max_tokens || model.max_tokens) - 1024
           json.field "budget_tokens", Math.max(Math.min(budget, ceiling), 0)
         end
@@ -904,7 +904,7 @@ module LLM::AI::Api::AnthropicMessages
 
   private def self.system_update_text(message : SystemMessage) : String
     parts = [] of String
-    text  = content_text(message.content)
+    text = content_text(message.content)
     parts << text unless text.empty?
     message.sections.try &.each do |name, value|
       parts << (value ? "Updated system prompt section \"#{name}\":\n\n#{value}" : "Removed system prompt section \"#{name}\".")

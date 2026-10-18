@@ -74,12 +74,15 @@ describe LLM::AI::ModelData do
   end
 
   it "parses allowed_fallback_models with cost and tiers" do
-    compat = LLM::AI::ModelData.build_compat(JSON.parse(%({
-      "allowed_fallback_models": [
-        {"provider": "anthropic", "model": "claude-opus-4-8", "cost": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_1h": 10.0}},
-        {"provider": "deepseek", "model": "deepseek-chat", "cost": {"input": 1.0, "output": 2.0, "cache_read": 0.1, "cache_write": 0.2, "tiers": [{"above": 100000, "cost": {"input": 0.5, "output": 1.0, "cache_read": 0.05, "cache_write": 0.1}}]}}
-      ]
-    })))
+    compat = LLM::AI::ModelData.build_compat(JSON.parse(<<-JSON
+      {
+        "allowed_fallback_models": [
+          {"provider": "anthropic", "model": "claude-opus-4-8", "cost": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_1h": 10.0}},
+          {"provider": "deepseek", "model": "deepseek-chat", "cost": {"input": 1.0, "output": 2.0, "cache_read": 0.1, "cache_write": 0.2, "tiers": [{"above": 100000, "cost": {"input": 0.5, "output": 1.0, "cache_read": 0.05, "cache_write": 0.1}}]}}
+        ]
+      }
+      JSON
+    ))
     compat.allowed_fallback_models.size.should eq 2
     first = compat.allowed_fallback_models[0]
     first.provider.should eq "anthropic"
@@ -124,29 +127,32 @@ describe LLM::AI::ModelData do
   end
 
   it "round-trips every compat field through JSON" do
-    compat = LLM::AI::ModelData.build_compat(JSON.parse(%({
-      "max_tokens_field": "max_tokens",
-      "thinking_format": "deepseek",
-      "requires_reasoning_content_on_assistant_messages": true,
-      "supports_finish_reason": false,
-      "supports_usage_in_streaming": false,
-      "supports_store": false,
-      "supports_developer_role": true,
-      "supports_mid_convo_tool_additions": true,
-      "supports_temperature": false,
-      "supports_eager_tool_input_streaming": false,
-      "supports_long_cache_retention": false,
-      "supports_cache_control_on_tools": false,
-      "supports_strict_tools": true,
-      "allow_empty_signature": true,
-      "force_adaptive_thinking": true,
-      "supports_mid_convo_system_messages": true,
-      "supports_mid_convo_tool_changes": true,
-      "supports_mid_convo_effort": true,
-      "allowed_fallback_models": [{"provider": "anthropic", "model": "claude-opus-4-8", "cost": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_1h": 10.0}}],
-      "requires_tool_result_name": true,
-      "requires_assistant_after_tool_result": true
-    })))
+    compat = LLM::AI::ModelData.build_compat(JSON.parse(<<-JSON
+      {
+        "max_tokens_field": "max_tokens",
+        "thinking_format": "deepseek",
+        "requires_reasoning_content_on_assistant_messages": true,
+        "supports_finish_reason": false,
+        "supports_usage_in_streaming": false,
+        "supports_store": false,
+        "supports_developer_role": true,
+        "supports_mid_convo_tool_additions": true,
+        "supports_temperature": false,
+        "supports_eager_tool_input_streaming": false,
+        "supports_long_cache_retention": false,
+        "supports_cache_control_on_tools": false,
+        "supports_strict_tools": true,
+        "allow_empty_signature": true,
+        "force_adaptive_thinking": true,
+        "supports_mid_convo_system_messages": true,
+        "supports_mid_convo_tool_changes": true,
+        "supports_mid_convo_effort": true,
+        "allowed_fallback_models": [{"provider": "anthropic", "model": "claude-opus-4-8", "cost": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_1h": 10.0}}],
+        "requires_tool_result_name": true,
+        "requires_assistant_after_tool_result": true
+      }
+      JSON
+    ))
     compat.max_tokens_field.should eq :max_tokens
     compat.thinking_format.should eq :deepseek
     compat.requires_reasoning_content_on_assistant_messages.should be_true

@@ -36,20 +36,25 @@ src/llm/ai/auth/kimi_oauth.cr         Kimi OAuth (device code) + refresh
 src/llm/ai/providers/*.cr         One Provider definition per provider
 src/llm/ai/data/*.json            Model metadata: pricing, windows, compat flags
 spec/                             Crystal specs (one file per unit)
+.ameba.yml                        Ameba linter config (disabled rules)
 ```
 
 ## Build / test / spec
 
-There are no build targets. Install dependencies and run the specs:
+There are no build targets. Install dependencies and run the specs and linter:
 
 ```console
 shards install
 crystal spec
+ameba
 ```
 
 `shard.lock`, `lib/`, `.shards/`, `bin/`, and `docs/` are gitignored. The
 specs use a local `HTTP::Server` (see `spec/spec_helper.cr` for `MockApi` and
-`ScriptedApi`) and never hit the network.
+`ScriptedApi`) and never hit the network. `ameba` reads `.ameba.yml`; three
+rules are intentionally disabled there — `Naming/QueryBoolMethods` (would
+rename `Bool` getters to `?` and break the public API), `Lint/NotNil`
+(`not_nil!` is used intentionally), and `Metrics/CyclomaticComplexity`.
 
 ## Code standards
 

@@ -280,7 +280,7 @@ describe LLM::AI::Api::AnthropicMessages do
     payload = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(
       anthropic_model, context, LLM::AI::StreamOptions.new(thinking_level: "high", user_id: "u1"), false))
     payload["model"].should eq "claude-test"
-    payload["stream"].should eq true
+    payload["stream"].should be_true
     payload["max_tokens"].as_i.should eq 8192
     system = payload["system"].as_a
     system.size.should eq 2
@@ -312,7 +312,7 @@ describe LLM::AI::Api::AnthropicMessages do
     tools_wire.size.should eq 2
     tools_wire[0]["name"].should eq "get_weather"
     tools_wire[0]["input_schema"]["type"].should eq "object"
-    tools_wire[0]["eager_input_streaming"].should eq true
+    tools_wire[0]["eager_input_streaming"].should be_true
     tools_wire[1]["cache_control"]["type"].should eq "ephemeral"
     payload["thinking"]["type"].should eq "enabled"
     payload["thinking"]["budget_tokens"].as_i.should eq 7168
@@ -542,7 +542,7 @@ describe LLM::AI::Api::AnthropicMessages do
       request["thinking"]["block_binding"]["prefix_mismatch_behavior"].should eq "drop_block"
       request.as_h.has_key?("temperature").should be_false
       messages = request["messages"].as_a
-      messages.map { |message| message["role"].as_s }.should eq ["user", "system", "assistant", "user", "system", "assistant", "user", "assistant", "system"]
+      messages.map(&.["role"].as_s).should eq ["user", "system", "assistant", "user", "system", "assistant", "user", "assistant", "system"]
       messages[1]["output_config"]["effort"].should eq "low"
       messages[1]["content"].as_a.size.should eq 0
       messages[4]["output_config"]["effort"].should eq "xhigh"
@@ -586,7 +586,7 @@ describe LLM::AI::Api::AnthropicMessages do
       tools.size.should eq 2
       tools[0]["name"].should eq "weather"
       tools[1]["name"].should eq "__pi_deferred_placeholder__"
-      tools[1]["defer_loading"].should eq true
+      tools[1]["defer_loading"].should be_true
       tools[1]["input_schema"]["type"].should eq "object"
       system_message = request["messages"].as_a[1]
       system_message["role"].should eq "system"

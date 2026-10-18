@@ -221,7 +221,7 @@ module LLM::AI::Api::OpenAICompletions
     index = tool_call["index"]?.try(&.as_i64?)
     id = tool_call["id"]?.try(&.as_s?)
     function = tool_call["function"]?
-    name = function.try { |f| f["name"]?.try(&.as_s?) }
+    name = function.try { |func| func["name"]?.try(&.as_s?) }
     idx = if (i = index) && (found = state.tool_by_index[i]?)
             found
           elsif (tool_id = id) && (found = state.tool_by_id[tool_id]?)
@@ -232,7 +232,7 @@ module LLM::AI::Api::OpenAICompletions
     tool = state.blocks[idx].as(ToolCall)
     resolved_id = tool.id.empty? ? (id || "") : tool.id
     resolved_name = tool.name.empty? ? (name || "") : tool.name
-    if args_delta = function.try { |f| f["arguments"]?.try(&.as_s?) }
+    if args_delta = function.try { |func| func["arguments"]?.try(&.as_s?) }
       partial = state.partial_args[idx]? || ""
       partial += args_delta
       state.partial_args[idx] = partial
@@ -311,7 +311,7 @@ module LLM::AI::Api::OpenAICompletions
   end
 
   private def self.merged_details(state : StreamState) : JSON::Any?
-    return nil if state.streamed_details.empty?
+    return if state.streamed_details.empty?
     JSON::Any.new(state.streamed_details)
   end
 
@@ -326,28 +326,28 @@ module LLM::AI::Api::OpenAICompletions
   end
 
   private def self.parse_reasoning_detail(detail : JSON::Any) : JSON::Any?
-    hash = detail.as_h? || return nil
+    hash = detail.as_h? || return
     if (id = hash["id"]?) && !id.raw.nil? && !id.as_s?
-      return nil
+      return
     end
     if (format = hash["format"]?) && !format.as_s?
-      return nil
+      return
     end
     if (index = hash["index"]?) && !index.as_i64? && !index.as_f?
-      return nil
+      return
     end
     case hash["type"]?.try(&.as_s?)
     when "reasoning.summary"
-      return nil unless hash["summary"]?.try(&.as_s?)
+      return unless hash["summary"]?.try(&.as_s?)
     when "reasoning.encrypted"
-      return nil unless hash["data"]?.try(&.as_s?)
+      return unless hash["data"]?.try(&.as_s?)
     when "reasoning.text"
-      return nil unless hash["text"]?.try(&.as_s?)
+      return unless hash["text"]?.try(&.as_s?)
       if (signature = hash["signature"]?) && !signature.raw.nil? && !signature.as_s?
-        return nil
+        return
       end
     else
-      return nil
+      return
     end
     detail
   end
@@ -382,36 +382,36 @@ module LLM::AI::Api::OpenAICompletions
     if (incoming = detail["id"]?) && !incoming.raw.nil?
       merged["id"] = incoming unless merged["id"]?.try(&.as_s?)
     end
-    if (incoming = detail["format"]?.try(&.as_s?))
+    if incoming = detail["format"]?.try(&.as_s?)
       existing = merged["format"]?.try(&.as_s?)
       merged["format"] = JSON::Any.new(incoming) if existing.nil? || existing.empty?
     end
-    if (incoming = detail["index"]?.try(&.as_i64?))
+    if incoming = detail["index"]?.try(&.as_i64?)
       merged["index"] = JSON::Any.new(incoming) unless merged["index"]?.try(&.as_i64?)
     end
     JSON::Any.new(merged)
   end
 
   private def self.parse_reasoning_details(signature : String?) : JSON::Any?
-    return nil unless signature
+    return unless signature
     parsed = JSON.parse(signature) rescue nil
-    return nil unless parsed
-    array = parsed.as_a? || return nil
-    return nil if array.empty?
-    return nil unless array.all? { |detail| parse_reasoning_detail(detail) }
+    return unless parsed
+    array = parsed.as_a? || return
+    return if array.empty?
+    return unless array.all? { |detail| parse_reasoning_detail(detail) }
     parsed
   end
 
   private def self.parse_usage(usage : JSON::Any?, model : Model) : Usage?
-    return nil unless usage
+    return unless usage
     prompt = usage["prompt_tokens"]?.try(&.as_i?) || 0
     completion = usage["completion_tokens"]?.try(&.as_i?) || 0
     details = usage["prompt_tokens_details"]?
-    cached = details.try { |d| d["cached_tokens"]?.try(&.as_i?) } ||
+    cached = details.try { |detail| detail["cached_tokens"]?.try(&.as_i?) } ||
              usage["prompt_cache_hit_tokens"]?.try(&.as_i?) ||
              usage["cached_tokens"]?.try(&.as_i?) || 0
-    cache_write = details.try { |d| d["cache_write_tokens"]?.try(&.as_i?) } || 0
-    reasoning = usage["completion_tokens_details"]?.try { |d| d["reasoning_tokens"]?.try(&.as_i?) } || 0
+    cache_write = details.try { |detail| detail["cache_write_tokens"]?.try(&.as_i?) } || 0
+    reasoning = usage["completion_tokens_details"]?.try { |detail| detail["reasoning_tokens"]?.try(&.as_i?) } || 0
     input = Math.max(prompt - cached - cache_write, 0)
     total = input + completion + cached + cache_write
     base = Usage.new(
@@ -494,7 +494,7 @@ module LLM::AI::Api::OpenAICompletions
                 tool_message(json, model, tool, images)
                 index += 1
               end
-              if images.any?
+              if images.present?
                 tool_results_ack(json) if model.compat.requires_assistant_after_tool_result
                 attached_images_message(json, images)
               end

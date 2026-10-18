@@ -67,7 +67,7 @@ module LLM::AI::SSE
           @buffer += String.new(chunk[0, read])
         end
       end
-      return nil if @buffer.empty?
+      return if @buffer.empty?
       line = @buffer
       @buffer = ""
       line

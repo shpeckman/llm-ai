@@ -137,7 +137,7 @@ module LLM::AI::Auth
       next current if current.expires - Time.utc.to_unix_ms > overrides.min_oauth_validity_ms
       begin
         refresh_bounded(oauth_auth, current, overrides.refresh_timeout)
-      rescue ex : DeadCredential
+      rescue DeadCredential
         nil
       rescue ex : Error
         refresh_failure = ex
@@ -151,11 +151,9 @@ module LLM::AI::Auth
   private def self.refresh_bounded(oauth_auth : OAuthAuth, credential : OAuthCredential, timeout_span : Time::Span) : OAuthCredential
     channel = Channel(OAuthCredential | Exception).new
     spawn do
-      begin
-        channel.send(oauth_auth.refresh.call(credential.refresh, nil))
-      rescue ex
-        channel.send(ex) rescue nil
-      end
+      channel.send(oauth_auth.refresh.call(credential.refresh, nil))
+    rescue ex
+      channel.send(ex) rescue nil
     end
     value = select
     when result = channel.receive

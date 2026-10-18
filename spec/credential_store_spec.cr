@@ -8,7 +8,7 @@ end
 
 describe LLM::AI::FileCredentialStore do
   it "round-trips an oauth credential" do
-    with_temp_store do |store, path, _|
+    with_temp_store do |store, _, _|
       credential = oauth("refresh-token", "access-token", 1_734_200_000_000_i64)
       store.modify("kimi-coding") { credential }
       store.read("kimi-coding").should eq credential
@@ -16,7 +16,7 @@ describe LLM::AI::FileCredentialStore do
   end
 
   it "lists provider ids and types" do
-    with_temp_store do |store, path, _|
+    with_temp_store do |store, _, _|
       store.modify("deepseek") { LLM::AI::ApiKeyCredential.new("sk-1") }
       store.modify("anthropic") { oauth("r", "a", 1_i64) }
       infos = store.list.sort_by(&.provider_id)
@@ -28,7 +28,7 @@ describe LLM::AI::FileCredentialStore do
   end
 
   it "modify passes the current value and stores the returned value" do
-    with_temp_store do |store, path, _|
+    with_temp_store do |store, _, _|
       seen = [] of LLM::AI::Credential?
       store.modify("p") do |current|
         seen << current
@@ -45,7 +45,7 @@ describe LLM::AI::FileCredentialStore do
   end
 
   it "delete removes" do
-    with_temp_store do |store, path, _|
+    with_temp_store do |store, _, _|
       store.modify("p") { LLM::AI::ApiKeyCredential.new("k") }
       store.read("p").should_not be_nil
       store.delete("p")
@@ -55,7 +55,7 @@ describe LLM::AI::FileCredentialStore do
   end
 
   it "concurrent modifies serialize" do
-    with_temp_store do |store, path, _|
+    with_temp_store do |store, _, _|
       done = Channel(Nil).new
       20.times do |i|
         spawn do

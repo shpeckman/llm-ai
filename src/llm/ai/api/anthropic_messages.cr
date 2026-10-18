@@ -409,7 +409,7 @@ module LLM::AI::Api::AnthropicMessages
     end
     betas = beta_features(model, context, resolved, oauth)
     headers["anthropic-beta"] = betas.join(", ") unless betas.empty?
-    options.headers.try &.each { |key, value| headers[key] = value }
+    options.headers.try &.each { |name, value| headers[name] = value }
     headers
   end
 
@@ -487,7 +487,7 @@ module LLM::AI::Api::AnthropicMessages
       write_tools(json, model, context, retention, oauth)
       write_thinking(json, model, options, resolved)
       if temperature = resolved.temperature
-        unless resolved.thinking_enabled || !model.compat.supports_temperature || model.compat.supports_mid_convo_effort
+        if !resolved.thinking_enabled && model.compat.supports_temperature && !model.compat.supports_mid_convo_effort
           json.field "temperature", temperature
         end
       end
@@ -534,10 +534,10 @@ module LLM::AI::Api::AnthropicMessages
     return if blocks.empty?
     json.field "system" do
       json.array do
-        blocks.each do |text|
+        blocks.each do |text_block|
           json.object do
             json.field "type", "text"
-            json.field "text", text
+            json.field "text", text_block
             write_cache_control(json, retention, model)
           end
         end
@@ -624,8 +624,8 @@ module LLM::AI::Api::AnthropicMessages
   end
 
   private def self.message_effort(message : AssistantMessage, model : Model) : String?
-    return nil unless model.compat.supports_mid_convo_effort
-    return nil unless message.api == "anthropic_messages" && message.provider == model.provider
+    return unless model.compat.supports_mid_convo_effort
+    return unless message.api == "anthropic_messages" && message.provider == model.provider
     level = message.provider_thinking_level
     level if level && EFFORT_LEVELS.includes?(level)
   end
@@ -647,7 +647,7 @@ module LLM::AI::Api::AnthropicMessages
   private def self.user_param(message : UserMessage) : JSON::Any?
     case content = message.content
     when String
-      return nil if content.strip.empty?
+      return if content.strip.empty?
       object_param({"role" => JSON::Any.new("user"), "content" => JSON::Any.new(content)})
     else
       blocks = content.compact_map do |block|
@@ -663,11 +663,9 @@ module LLM::AI::Api::AnthropicMessages
               "data"       => JSON::Any.new(block.data),
             }),
           })
-        else
-          nil
         end
       end
-      return nil if blocks.empty?
+      return if blocks.empty?
       user_param_from_blocks(blocks)
     end
   end
@@ -692,7 +690,7 @@ module LLM::AI::Api::AnthropicMessages
         })
       end
     end
-    return nil if blocks.empty?
+    return if blocks.empty?
     object_param({"role" => JSON::Any.new("assistant"), "content" => JSON::Any.new(blocks)})
   end
 
@@ -701,12 +699,12 @@ module LLM::AI::Api::AnthropicMessages
       if signature = block.thinking_signature
         return object_param({"type" => JSON::Any.new("redacted_thinking"), "data" => JSON::Any.new(signature)})
       end
-      return nil if block.thinking.strip.empty?
+      return if block.thinking.strip.empty?
       return object_param({"type" => JSON::Any.new("text"), "text" => JSON::Any.new(block.thinking)})
     end
     signature = block.thinking_signature
     has_signature = !signature.nil? && !signature.not_nil!.strip.empty?
-    return nil if block.thinking.strip.empty? && !has_signature
+    return if block.thinking.strip.empty? && !has_signature
     if has_signature
       object_param({"type" => JSON::Any.new("thinking"), "thinking" => JSON::Any.new(block.thinking), "signature" => JSON::Any.new(signature.not_nil!)})
     elsif model.compat.allow_empty_signature
@@ -914,7 +912,7 @@ module LLM::AI::Api::AnthropicMessages
 
   private def self.system_update_param(message : SystemMessage, model : Model, retention : Symbol, oauth : Bool, native : Bool) : JSON::Any?
     text = system_update_text(message)
-    return nil if text.empty? && !native
+    return if text.empty? && !native
     return object_param({"role" => JSON::Any.new("system"), "content" => JSON::Any.new(text)}) unless native
     blocks = [] of JSON::Any
     blocks << object_param({"type" => JSON::Any.new("text"), "text" => JSON::Any.new(text)}) unless text.empty?
@@ -933,7 +931,7 @@ module LLM::AI::Api::AnthropicMessages
     additions.try &.each_with_index do |tool, index|
       blocks << tool_addition_param(tool, model, retention, oauth, index == additions.not_nil!.size - 1)
     end
-    return nil if blocks.empty?
+    return if blocks.empty?
     object_param({"role" => JSON::Any.new("system"), "content" => JSON::Any.new(blocks)})
   end
 

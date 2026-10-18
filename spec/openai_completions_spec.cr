@@ -201,8 +201,8 @@ describe LLM::AI::Api::OpenAICompletions do
       kimi_model, user_context, LLM::AI::StreamOptions.new(thinking_level: "high")))
     payload.as_h.has_key?("max_completion_tokens").should be_true
     payload.as_h.has_key?("max_tokens").should be_false
-    payload["store"].should eq false
-    payload["stream_options"]["include_usage"].should eq true
+    payload["store"].should be_false
+    payload["stream_options"]["include_usage"].should be_true
     payload["reasoning_effort"].should eq "high"
     payload.as_h.has_key?("thinking").should be_false
   end
@@ -224,11 +224,11 @@ describe LLM::AI::Api::OpenAICompletions do
 
     at_index_zero = LLM::AI::Context.new([system] of LLM::AI::Message)
     payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(kimi_model_with_tool_updates, at_index_zero, LLM::AI::StreamOptions.new))
-    payload["messages"].as_a.none? { |m| m["tools"]? }.should be_true
+    payload["messages"].as_a.none? { |msg| msg["tools"]? }.should be_true
 
     flags_off = LLM::AI::Context.new([user, system] of LLM::AI::Message)
     payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(kimi_model, flags_off, LLM::AI::StreamOptions.new))
-    payload["messages"].as_a.none? { |m| m["tools"]? }.should be_true
+    payload["messages"].as_a.none? { |msg| msg["tools"]? }.should be_true
 
     compat = LLM::AI::Compat.new(max_tokens_field: :max_completion_tokens, supports_mid_convo_tool_additions: true)
     model = LLM::AI::Model.new("kimi-k3", "Kimi K3", "kimi-coding", "http://127.0.0.1", LLM::AI::ApiKind::OpenaiCompletions,
@@ -236,7 +236,7 @@ describe LLM::AI::Api::OpenAICompletions do
       LLM::AI::ModelCost.new(1.2, 4.0, 0.15, 1.2, nil),
       {"high" => "high", "off" => nil}, false, nil, compat)
     payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(model, flags_off, LLM::AI::StreamOptions.new))
-    payload["messages"].as_a.none? { |m| m["tools"]? }.should be_true
+    payload["messages"].as_a.none? { |msg| msg["tools"]? }.should be_true
   end
 
   it "maps finish reasons" do

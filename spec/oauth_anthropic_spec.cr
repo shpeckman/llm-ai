@@ -18,11 +18,9 @@ end
 private def run_login(interaction : LLM::AI::Auth::Interaction, no_browser : Bool, hosts : LLM::AI::Auth::AuthHosts) : Channel(LLM::AI::OAuthCredential | Exception)
   result = Channel(LLM::AI::OAuthCredential | Exception).new
   spawn do
-    begin
-      result.send LLM::AI::Auth::Anthropic.login(interaction, no_browser, hosts)
-    rescue ex
-      result.send ex
-    end
+    result.send LLM::AI::Auth::Anthropic.login(interaction, no_browser, hosts)
+  rescue ex
+    result.send ex
   end
   result
 end
@@ -157,7 +155,7 @@ describe LLM::AI::Auth::Anthropic do
       ensure
         client.close
       end
-      credential = result.receive.should be_a(LLM::AI::OAuthCredential)
+      result.receive.should be_a(LLM::AI::OAuthCredential)
       body = JSON.parse(api.requests.first[2])
       body["code"].should eq "callback-code"
     ensure

@@ -28,7 +28,7 @@ module LLM::AI::Auth
         exchange_manual(hosts.token_url, input, verifier, COPY_CODE_REDIRECT)
       else
         host = ENV["PI_OAUTH_CALLBACK_HOST"]? || "127.0.0.1"
-        server = OAuthCallbackServer.new(host, CALLBACK_PATH, verifier, ->(code : String) : String? { nil })
+        server = OAuthCallbackServer.new(host, CALLBACK_PATH, verifier, ->(_code : String) : String? { nil })
         server.start
         begin
           url = build_authorize_url(hosts.authorize_url, challenge, verifier, server.redirect_uri)
@@ -89,19 +89,15 @@ module LLM::AI::Auth
     private def self.wait_code(server : OAuthCallbackServer, interaction : Interaction) : String
       callback = Channel(String | Exception).new(1)
       spawn do
-        begin
-          callback.send(server.wait)
-        rescue ex
-          callback.send(ex) rescue nil
-        end
+        callback.send(server.wait)
+      rescue ex
+        callback.send(ex) rescue nil
       end
       manual = Channel(String | Exception).new(1)
       spawn do
-        begin
-          manual.send(interaction.prompt(:manual_code, "Paste the authorization code or redirect URL:"))
-        rescue ex
-          manual.send(ex) rescue nil
-        end
+        manual.send(interaction.prompt(:manual_code, "Paste the authorization code or redirect URL:"))
+      rescue ex
+        manual.send(ex) rescue nil
       end
       value = select
       when result = callback.receive

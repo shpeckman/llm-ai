@@ -308,6 +308,10 @@ if usage = message.usage
 end
 ```
 
+DeepSeek's on-disk context cache is automatic. To get cache hits, keep the
+system prompt and tool definitions byte-stable across turns; cached input tokens
+are reported as `usage.cache_read` and billed at the model's `cache_read` rate.
+
 ## Public API reference
 
 - `LLM::AI::Models` — `.build`, `#provider`, `#providers`, `#model`,

@@ -78,13 +78,13 @@ end
 
 ## Providers and models
 
-| Provider id | Display name | Models |
-|-------------|--------------|--------|
-| `faux` | Faux (in-memory) | `faux-chat`, `faux-error` |
-| `deepseek` | DeepSeek | `deepseek-flash`, `deepseek-v4-pro` |
-| `anthropic` | Anthropic | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-opus-4-5`, `claude-sonnet-4-6`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
-| `kimi-coding` | Kimi For Coding | `kimi-for-coding`, `kimi-for-coding-highspeed` |
-| `moonshot` | Moonshot | `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`, `kimi-k2.6` |
+| Provider id   | Display name     | Models                                                                                                                                                                                               |
+|---------------|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `faux`        | Faux (in-memory) | `faux-chat`, `faux-error`                                                                                                                                                                            |
+| `deepseek`    | DeepSeek         | `deepseek-flash`, `deepseek-v4-pro`                                                                                                                                                                  |
+| `anthropic`   | Anthropic        | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-opus-4-5`, `claude-sonnet-4-6`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
+| `kimi-coding` | Kimi For Coding  | `kimi-for-coding`, `kimi-for-coding-highspeed`                                                                                                                                                       |
+| `moonshot`    | Moonshot         | `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`, `kimi-k2.6`                                                                                                                                 |
 
 Model metadata (context window, max tokens, pricing, and per-model
 compatibility flags) is data-driven and loaded from
@@ -96,12 +96,12 @@ Each provider supports API-key auth via an environment variable, and
 credentials can also be stored on disk. The resolution order is: explicit
 override → stored credential → environment.
 
-| Provider | Environment variable(s) |
-|----------|--------------------------|
-| `deepseek` | `DEEPSEEK_API_KEY` |
-| `anthropic` | `ANTHROPIC_API_KEY`, `ANTHROPIC_OAUTH_TOKEN`, `ANTHROPIC_AUTH_TOKEN` |
-| `kimi-coding` | `KIMI_API_KEY` |
-| `moonshot` | `MOONSHOT_API_KEY` |
+| Provider      | Environment variable(s)                                              |
+|---------------|----------------------------------------------------------------------|
+| `deepseek`    | `DEEPSEEK_API_KEY`                                                   |
+| `anthropic`   | `ANTHROPIC_API_KEY`, `ANTHROPIC_OAUTH_TOKEN`, `ANTHROPIC_AUTH_TOKEN` |
+| `kimi-coding` | `KIMI_API_KEY`                                                       |
+| `moonshot`    | `MOONSHOT_API_KEY`                                                   |
 
 Stored credentials live in `~/.config/pi-ai-cr/auth.json` by default
 (`FileCredentialStore`). Log in and out interactively:
@@ -196,21 +196,21 @@ options = LLM::AI::StreamOptions.new(
 )
 ```
 
-| Field | Meaning |
-|-------|---------|
-| `max_tokens` | Output token cap. |
-| `temperature` | Sampling temperature. |
-| `thinking_level` / `thinking_enabled` | Enable reasoning and pick a level. |
-| `effort` | Reasoning effort where supported. |
-| `thinking_display` | How thinking is surfaced (Anthropic). |
-| `tool_choice` | Tool-selection mode. |
-| `headers` | Extra request headers. |
-| `cache_retention` | `:short`, `:long`, or `:none` (Anthropic). |
-| `max_retries` | Retry count for retryable failures. |
-| `timeout_ms` | Per-request read timeout. |
-| `user_id` | User metadata (Anthropic). |
-| `sampling_params` | Raw per-request parameters merged last. |
-| `hooks` | `StreamHooks` callbacks (below). |
+Field                                 | Meaning
+--------------------------------------|-------------------------------------------
+`max_tokens`                          | Output token cap.
+`temperature`                         | Sampling temperature.
+`thinking_level` / `thinking_enabled` | Enable reasoning and pick a level.
+`effort`                              | Reasoning effort where supported.
+`thinking_display`                    | How thinking is surfaced (Anthropic).
+`tool_choice`                         | Tool-selection mode.
+`headers`                             | Extra request headers.
+`cache_retention`                     | `:short`, `:long`, or `:none` (Anthropic).
+`max_retries`                         | Retry count for retryable failures.
+`timeout_ms`                          | Per-request read timeout.
+`user_id`                             | User metadata (Anthropic).
+`sampling_params`                     | Raw per-request parameters merged last.
+`hooks`                               | `StreamHooks` callbacks (below).
 
 ## Examples
 

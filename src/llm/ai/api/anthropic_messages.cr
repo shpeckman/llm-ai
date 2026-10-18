@@ -487,7 +487,7 @@ module LLM::AI::Api::AnthropicMessages
       write_tools(json, model, context, retention, oauth)
       write_thinking(json, model, options, resolved)
       if temperature = resolved.temperature
-        unless resolved.thinking_enabled || !model.compat.supports_temperature || model.compat.supports_mid_convo_effort
+        if !resolved.thinking_enabled && model.compat.supports_temperature && !model.compat.supports_mid_convo_effort
           json.field "temperature", temperature
         end
       end

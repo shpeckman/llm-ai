@@ -232,7 +232,7 @@ module LLM::AI::Api::OpenAICompletions
     tool = state.blocks[idx].as(ToolCall)
     resolved_id = tool.id.empty? ? (id || "") : tool.id
     resolved_name = tool.name.empty? ? (name || "") : tool.name
-    if args_delta = function.try { |f| f["arguments"]?.try(&.as_s?) }
+    if args_delta = function.try { |fn| fn["arguments"]?.try(&.as_s?) }
       partial = state.partial_args[idx]? || ""
       partial += args_delta
       state.partial_args[idx] = partial

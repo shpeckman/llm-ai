@@ -54,7 +54,7 @@ models = LLM::AI::Models.build
 model  = models.model("deepseek", "deepseek-v4-pro")
 
 context = LLM::AI::Context.new(
-  [LLM::AI::UserMessage.new("Say hello in one sentence.", Time.utc)],
+  [LLM::AI::UserMessage.new("Say hello in one sentence.", Time.utc)] of LLM::AI::Message,
   system_prompt: "You are a helpful assistant.",
 )
 
@@ -224,7 +224,7 @@ weather = LLM::AI::Tool.new(
 )
 
 context = LLM::AI::Context.new(
-  [LLM::AI::UserMessage.new("What's the weather in Paris?", Time.utc)],
+  [LLM::AI::UserMessage.new("What's the weather in Paris?", Time.utc)] of LLM::AI::Message,
   tools: [weather],
 )
 
@@ -243,7 +243,7 @@ if call = message.content.select(LLM::AI::ToolCall).first?
       LLM::AI::UserMessage.new("What's the weather in Paris?", Time.utc),
       message,
       result,
-    ],
+    ] of LLM::AI::Message,
     tools: [weather],
   )
   answer = models.chat(model, followup)

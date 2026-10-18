@@ -38,9 +38,9 @@ module LLM::AI
     include JSON::Serializable
 
     getter refresh : String
-    getter access  : String
+    getter access : String
     getter expires : Int64
-    getter extra   : Hash(String, JSON::Any)
+    getter extra : Hash(String, JSON::Any)
 
     def initialize(@refresh : String, @access : String, @expires : Int64, @extra : Hash(String, JSON::Any) = Hash(String, JSON::Any).new)
     end
@@ -62,7 +62,7 @@ module LLM::AI
     include JSON::Serializable
 
     getter provider_id : String
-    getter type        : String
+    getter type : String
 
     def initialize(@provider_id : String, @type : String)
     end
@@ -96,7 +96,7 @@ module LLM::AI
 
     def modify(provider_id : String, & : Credential? -> Credential?) : Credential?
       with_lock do
-        all     = read_all
+        all = read_all
         updated = yield all[provider_id]?
         if updated
           all[provider_id] = updated

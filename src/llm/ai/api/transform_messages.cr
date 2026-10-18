@@ -1,11 +1,11 @@
 # src/llm/ai/api/transform_messages.cr
 module LLM::AI::Transform
   def self.normalize(context : Context, target : Model) : Context
-    messages      = [] of Message
-    id_map        = {} of String => String
+    messages = [] of Message
+    id_map = {} of String => String
     pending_calls = [] of ToolCall
-    answered_ids  = Set(String).new
-    held_system   = [] of Message
+    answered_ids = Set(String).new
+    held_system = [] of Message
 
     close_pending = -> {
       pending_calls.each do |call|
@@ -28,11 +28,11 @@ module LLM::AI::Transform
         close_pending.call
         next if message.stop_reason.error? || message.stop_reason.aborted?
         same_model = message.provider == target.provider && message.model == target.id
-        blocks     = message.content.compact_map { |block| convert_block(block, target, same_model, id_map) }
-        calls      = blocks.select(ToolCall)
+        blocks = message.content.compact_map { |block| convert_block(block, target, same_model, id_map) }
+        calls = blocks.select(ToolCall)
         unless calls.empty?
           pending_calls = calls
-          answered_ids  = Set(String).new
+          answered_ids = Set(String).new
         end
         messages << AssistantMessage.new(
           blocks, message.provider, message.model, message.timestamp, message.api,

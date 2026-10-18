@@ -49,7 +49,7 @@ describe LLM::AI::Auth::Kimi do
     api = ScriptedApi.new([device_auth_response, token_success_response]).start
     begin
       interaction = RecordingInteraction.new([] of String)
-      result      = run_kimi_login(interaction, api)
+      result = run_kimi_login(interaction, api)
       result.receive.should be_a(LLM::AI::OAuthCredential)
       device = interaction.events.first.should be_a(LLM::AI::Auth::DeviceCode)
       device.user_code.should eq "ABCD-1234"
@@ -59,7 +59,7 @@ describe LLM::AI::Auth::Kimi do
       first[1].should eq "/api/oauth/device_authorization"
       HTTP::Params.parse(first[2])["client_id"].should eq "17e5f671-d194-4dfb-9706-5516cb48c098"
       token_request = api.request_log[1]
-      notify_time   = interaction.event_times[0]
+      notify_time = interaction.event_times[0]
       (token_request[3] - notify_time).should be >= 900.milliseconds
     ensure
       api.close
@@ -70,8 +70,8 @@ describe LLM::AI::Auth::Kimi do
     api = ScriptedApi.new([device_auth_response, token_error_response("authorization_pending"), token_success_response]).start
     begin
       interaction = RecordingInteraction.new([] of String)
-      result      = run_kimi_login(interaction, api)
-      credential  = result.receive.should be_a(LLM::AI::OAuthCredential)
+      result = run_kimi_login(interaction, api)
+      credential = result.receive.should be_a(LLM::AI::OAuthCredential)
       credential.access.should eq "access-k"
       credential.refresh.should eq "refresh-k"
       expected = Time.utc.to_unix_ms + 1_800_000
@@ -86,7 +86,7 @@ describe LLM::AI::Auth::Kimi do
     api = ScriptedApi.new([device_auth_response, token_error_response("authorization_pending"), token_error_response("slow_down"), token_success_response]).start
     begin
       interaction = RecordingInteraction.new([] of String)
-      result      = run_kimi_login(interaction, api)
+      result = run_kimi_login(interaction, api)
       result.receive.should be_a(LLM::AI::OAuthCredential)
       gap = api.request_log[3][3] - api.request_log[2][3]
       gap.should be >= 1.9.seconds
@@ -99,8 +99,8 @@ describe LLM::AI::Auth::Kimi do
     api = ScriptedApi.new([device_auth_response, token_error_response("expired_token")]).start
     begin
       interaction = RecordingInteraction.new([] of String)
-      result      = run_kimi_login(interaction, api)
-      error       = result.receive.should be_a(Exception)
+      result = run_kimi_login(interaction, api)
+      error = result.receive.should be_a(Exception)
       (error.message || "").should contain "restart"
     ensure
       api.close
@@ -111,8 +111,8 @@ describe LLM::AI::Auth::Kimi do
     api = ScriptedApi.new([device_auth_response, token_error_response("access_denied")]).start
     begin
       interaction = RecordingInteraction.new([] of String)
-      result      = run_kimi_login(interaction, api)
-      error       = result.receive.should be_a(Exception)
+      result = run_kimi_login(interaction, api)
+      error = result.receive.should be_a(Exception)
       (error.message || "").should contain "denied"
     ensure
       api.close

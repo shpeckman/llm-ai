@@ -699,7 +699,7 @@ module LLM::AI::Api::OpenAICompletions
           json.field "name", tool.name
           json.field "description", tool.description
           json.field "parameters" do
-            Jsonify.any(json, tool.parameters)
+            Jsonify.canonical(json, tool.parameters)
           end
         end
       end
@@ -711,7 +711,7 @@ module LLM::AI::Api::OpenAICompletions
       json.field "name", tool.name
       json.field "description", tool.description
       json.field "parameters" do
-        Jsonify.any(json, tool.parameters)
+        Jsonify.canonical(json, tool.parameters)
       end
     end
   end

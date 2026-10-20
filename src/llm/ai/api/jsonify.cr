@@ -26,4 +26,27 @@ module LLM::AI::Jsonify
       end
     end
   end
+
+  def canonical(json : JSON::Builder, value : JSON::Any) : Nil
+    case raw = value.raw
+    when Nil
+      json.null
+    when Bool
+      json.bool(raw)
+    when String
+      json.string(raw)
+    when Int64
+      json.number(raw)
+    when Float64
+      json.number(raw)
+    when Array(JSON::Any)
+      json.array do
+        raw.each { |item| canonical(json, item) }
+      end
+    when Hash(String, JSON::Any)
+      json.object do
+        raw.keys.sort!.each { |key| json.field(key) { canonical(json, raw[key]) } }
+      end
+    end
+  end
 end

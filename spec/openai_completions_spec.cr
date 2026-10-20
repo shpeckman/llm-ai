@@ -459,4 +459,36 @@ describe LLM::AI::Api::OpenAICompletions do
       api.close
     end
   end
+
+  it "produces byte-identical payloads for the same context" do
+    tool = LLM::AI::Tool.new("lookup", "look up", JSON.parse(%({"type":"object","properties":{"q":{"type":"string"}}})))
+    context = LLM::AI::Context.new([LLM::AI::UserMessage.new("hi", Time.utc)] of LLM::AI::Message, tools: [tool])
+    a = LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new)
+    b = LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new)
+    a.should eq b
+  end
+
+  it "serializes tool parameters with sorted keys regardless of insertion order" do
+    tool_a = LLM::AI::Tool.new("t", "d", JSON.parse(%({"type":"object","properties":{"b":{"type":"string"},"a":{"type":"number"}}})))
+    tool_b = LLM::AI::Tool.new("t", "d", JSON.parse(%({"properties":{"a":{"type":"number"},"b":{"type":"string"}},"type":"object"})))
+    a = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, LLM::AI::Context.new([] of LLM::AI::Message, tools: [tool_a]), LLM::AI::StreamOptions.new))
+    b = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, LLM::AI::Context.new([] of LLM::AI::Message, tools: [tool_b]), LLM::AI::StreamOptions.new))
+    a["tools"][0]["function"]["parameters"].to_json.should eq b["tools"][0]["function"]["parameters"].to_json
+  end
+
+  it "replays a deepseek assistant turn with text, reasoning, and tool calls" do
+    assistant = LLM::AI::AssistantMessage.new(
+      [
+        LLM::AI::ThinkingContent.new("let me think", "reasoning_content"),
+        LLM::AI::TextContent.new("hello"),
+        LLM::AI::ToolCall.new("t1", "lookup", JSON.parse(%({"q":"x"}))),
+      ] of LLM::AI::ContentBlock,
+      "deepseek", "deepseek-chat", Time.utc)
+    context = LLM::AI::Context.new([assistant] of LLM::AI::Message)
+    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new))
+    message = payload["messages"][0]
+    message["content"].should eq "hello"
+    message["reasoning_content"].should eq "let me think"
+    message["tool_calls"][0]["function"]["arguments"].should eq JSON.parse(%({"q":"x"}))
+  end
 end

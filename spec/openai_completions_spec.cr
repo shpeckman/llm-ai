@@ -87,7 +87,7 @@ describe LLM::AI::Api::OpenAICompletions do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      model  = deepseek_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
       events = [] of LLM::AI::StreamEvent
       stream.each { |event| events << event }
@@ -113,15 +113,15 @@ describe LLM::AI::Api::OpenAICompletions do
       {"index" => 0, "function" => {"arguments" => "s\"}"}},
     ]}, "finish_reason" => JSON::Any.new(nil)}]}.to_json
     body = sse_body([first, second, final_chunk("tool_calls", usage_json(5, 0))])
-    api = MockApi.new.serve(body).start
+    api  = MockApi.new.serve(body).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      model  = deepseek_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
       events = [] of LLM::AI::StreamEvent
       stream.each { |event| events << event }
       events.any?(LLM::AI::StreamEvent::ToolCallStart).should be_true
       first_delta = events.select(LLM::AI::StreamEvent::ToolCallDelta).first
-      tool = first_delta.partial.content.select(LLM::AI::ToolCall).first.not_nil!
+      tool        = first_delta.partial.content.select(LLM::AI::ToolCall).first.not_nil!
       tool.arguments.should eq JSON.parse("{\"city\":\"pari\"}")
       result = stream.result
       result.stop_reason.should eq LLM::AI::StopReason::ToolUse
@@ -136,12 +136,12 @@ describe LLM::AI::Api::OpenAICompletions do
       {"index" => 0, "id" => "t2", "function" => {"name" => "bad", "arguments" => "not json"}},
     ]}, "finish_reason" => JSON::Any.new(nil)}]}.to_json
     body = sse_body([chunk, final_chunk("tool_calls", usage_json(5, 0))])
-    api = MockApi.new.serve(body).start
+    api  = MockApi.new.serve(body).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      model  = deepseek_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
       result = stream.result
-      tool = result.content.select(LLM::AI::ToolCall).first.not_nil!
+      tool   = result.content.select(LLM::AI::ToolCall).first.not_nil!
       tool.arguments.should eq JSON.parse("{}")
       tool.arguments_error.should_not be_nil
     ensure
@@ -151,10 +151,10 @@ describe LLM::AI::Api::OpenAICompletions do
 
   it "emits thinking deltas before text for deepseek" do
     thinking = {"choices" => [{"index" => 0, "delta" => {"reasoning_content" => "hmm"}, "finish_reason" => JSON::Any.new(nil)}]}.to_json
-    body = sse_body([thinking, content_chunk("ok"), final_chunk("stop", usage_json(5, 2))])
-    api = MockApi.new.serve(body).start
+    body     = sse_body([thinking, content_chunk("ok"), final_chunk("stop", usage_json(5, 2))])
+    api      = MockApi.new.serve(body).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      model  = deepseek_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
       events = [] of LLM::AI::StreamEvent
       stream.each { |event| events << event }
@@ -191,8 +191,8 @@ describe LLM::AI::Api::OpenAICompletions do
 
   it "replays reasoning_content on assistant messages" do
     assistant = LLM::AI::AssistantMessage.new([LLM::AI::TextContent.new("hi")] of LLM::AI::ContentBlock, "deepseek", "deepseek-chat", Time.utc)
-    context = LLM::AI::Context.new([assistant] of LLM::AI::Message)
-    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new))
+    context   = LLM::AI::Context.new([assistant] of LLM::AI::Message)
+    payload   = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new))
     payload["messages"][0]["reasoning_content"].should eq ""
   end
 
@@ -208,9 +208,9 @@ describe LLM::AI::Api::OpenAICompletions do
   end
 
   it "turns kimi mid-conversation tool additions into a system tools message" do
-    tool = LLM::AI::Tool.new("lookup", "look up things", JSON.parse("{\"type\":\"object\"}"))
-    system = LLM::AI::SystemMessage.new("sys", Time.utc, nil, [tool], nil)
-    user = LLM::AI::UserMessage.new("hi", Time.utc)
+    tool    = LLM::AI::Tool.new("lookup", "look up things", JSON.parse("{\"type\":\"object\"}"))
+    system  = LLM::AI::SystemMessage.new("sys", Time.utc, nil, [tool], nil)
+    user    = LLM::AI::UserMessage.new("hi", Time.utc)
     context = LLM::AI::Context.new([user, system] of LLM::AI::Message)
     payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(kimi_model_with_tool_updates, context, LLM::AI::StreamOptions.new))
     payload["messages"][1]["role"].should eq "system"
@@ -218,16 +218,16 @@ describe LLM::AI::Api::OpenAICompletions do
   end
 
   it "suppresses kimi tool additions without support flags or at index zero" do
-    tool = LLM::AI::Tool.new("lookup", "look up things", JSON.parse("{\"type\":\"object\"}"))
+    tool   = LLM::AI::Tool.new("lookup", "look up things", JSON.parse("{\"type\":\"object\"}"))
     system = LLM::AI::SystemMessage.new("sys", Time.utc, nil, [tool], nil)
-    user = LLM::AI::UserMessage.new("hi", Time.utc)
+    user   = LLM::AI::UserMessage.new("hi", Time.utc)
 
     at_index_zero = LLM::AI::Context.new([system] of LLM::AI::Message)
-    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(kimi_model_with_tool_updates, at_index_zero, LLM::AI::StreamOptions.new))
+    payload       = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(kimi_model_with_tool_updates, at_index_zero, LLM::AI::StreamOptions.new))
     payload["messages"].as_a.none? { |msg| msg["tools"]? }.should be_true
 
     flags_off = LLM::AI::Context.new([user, system] of LLM::AI::Message)
-    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(kimi_model, flags_off, LLM::AI::StreamOptions.new))
+    payload   = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(kimi_model, flags_off, LLM::AI::StreamOptions.new))
     payload["messages"].as_a.none? { |msg| msg["tools"]? }.should be_true
 
     compat = LLM::AI::Compat.new(max_tokens_field: :max_completion_tokens, supports_mid_convo_tool_additions: true)
@@ -241,9 +241,9 @@ describe LLM::AI::Api::OpenAICompletions do
 
   it "maps finish reasons" do
     body = sse_body([final_chunk("length", usage_json(5, 2))])
-    api = MockApi.new.serve(body).start
+    api  = MockApi.new.serve(body).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      model  = deepseek_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
       stream.result.stop_reason.should eq LLM::AI::StopReason::Length
     ensure
@@ -253,8 +253,8 @@ describe LLM::AI::Api::OpenAICompletions do
 
   it "infers stop when finish_reason is missing and unsupported" do
     no_finish = {"choices" => [{"index" => 0, "delta" => {"content" => "x"}, "finish_reason" => JSON::Any.new(nil)}]}.to_json
-    body = sse_body([no_finish, "[DONE]"])
-    api = MockApi.new.serve(body).start
+    body      = sse_body([no_finish, "[DONE]"])
+    api       = MockApi.new.serve(body).start
     begin
       compat = LLM::AI::Compat.new(supports_finish_reason: false)
       model = LLM::AI::Model.new("m", "m", "p", "http://127.0.0.1:#{api.port}", LLM::AI::ApiKind::OpenaiCompletions,
@@ -269,12 +269,12 @@ describe LLM::AI::Api::OpenAICompletions do
 
   it "aborts mid-stream with partial content" do
     body = sse_body([content_chunk("hello"), content_chunk(" "), content_chunk("world")])
-    api = MockApi.new.serve(body).start
+    api  = MockApi.new.serve(body).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
-      abort = LLM::AI::AbortHandle.new
-      stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, abort)
-      deltas = 0
+      model    = deepseek_model("http://127.0.0.1:#{api.port}")
+      abort    = LLM::AI::AbortHandle.new
+      stream   = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, abort)
+      deltas   = 0
       terminal = nil
       stream.each do |event|
         case event
@@ -295,10 +295,10 @@ describe LLM::AI::Api::OpenAICompletions do
   end
 
   it "retries a 500 then succeeds" do
-    ok = sse_body([content_chunk("ok"), final_chunk("stop", usage_json(2, 1))])
+    ok  = sse_body([content_chunk("ok"), final_chunk("stop", usage_json(2, 1))])
     api = ScriptedApi.new([{500, {} of String => String, "boom"}, {200, {"Content-Type" => "text/event-stream"}, ok}]).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      model  = deepseek_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new(max_retries: 1), auth_result, nil)
       result = stream.result
       result.content.select(LLM::AI::TextContent).first.not_nil!.text.should eq "ok"
@@ -312,9 +312,9 @@ describe LLM::AI::Api::OpenAICompletions do
     both = %({"choices":[{"index":0,"delta":{},"finish_reason":null,"usage":{"prompt_tokens":1,"completion_tokens":2}}],"usage":{"prompt_tokens":100,"completion_tokens":7}})
     stop = %({"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]})
     body = sse_body([both, stop])
-    api = MockApi.new.serve(body).start
+    api  = MockApi.new.serve(body).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      model  = deepseek_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
       result = stream.result
       result.usage.not_nil!.input.should eq 100
@@ -326,11 +326,11 @@ describe LLM::AI::Api::OpenAICompletions do
 
   it "falls back to choice usage when chunk usage is absent" do
     choice_usage = %({"choices":[{"index":0,"delta":{},"finish_reason":null,"usage":{"prompt_tokens":30,"completion_tokens":4}}]})
-    stop = %({"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]})
-    body = sse_body([choice_usage, stop])
-    api = MockApi.new.serve(body).start
+    stop         = %({"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]})
+    body         = sse_body([choice_usage, stop])
+    api          = MockApi.new.serve(body).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      model  = deepseek_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
       result = stream.result
       result.usage.not_nil!.input.should eq 30
@@ -343,12 +343,12 @@ describe LLM::AI::Api::OpenAICompletions do
   it "sends an empty tools array when replaying tool history without context tools" do
     assistant = LLM::AI::AssistantMessage.new(
       [LLM::AI::ToolCall.new("t1", "lookup", JSON.parse("{}"))] of LLM::AI::ContentBlock, "kimi", "kimi-k3", Time.utc)
-    result = LLM::AI::ToolResultMessage.new("t1", "lookup", [LLM::AI::TextContent.new("found")] of LLM::AI::ContentBlock, Time.utc)
+    result  = LLM::AI::ToolResultMessage.new("t1", "lookup", [LLM::AI::TextContent.new("found")] of LLM::AI::ContentBlock, Time.utc)
     context = LLM::AI::Context.new([assistant, result] of LLM::AI::Message)
-    ok = sse_body([final_chunk("stop", usage_json(2, 1))])
-    api = ScriptedApi.new([{200, {"Content-Type" => "text/event-stream"}, ok}]).start
+    ok      = sse_body([final_chunk("stop", usage_json(2, 1))])
+    api     = ScriptedApi.new([{200, {"Content-Type" => "text/event-stream"}, ok}]).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      model  = deepseek_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, context, LLM::AI::StreamOptions.new, auth_result, nil)
       stream.result.stop_reason.should eq LLM::AI::StopReason::Stop
       payload = JSON.parse(api.request_log.first[2])
@@ -358,7 +358,7 @@ describe LLM::AI::Api::OpenAICompletions do
     end
 
     with_tools = LLM::AI::Context.new([assistant] of LLM::AI::Message, tools: [LLM::AI::Tool.new("lookup", "desc", JSON.parse("{}"))])
-    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, with_tools, LLM::AI::StreamOptions.new))
+    payload    = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, with_tools, LLM::AI::StreamOptions.new))
     payload["tools"].as_a.size.should eq 1
   end
 
@@ -388,9 +388,9 @@ describe LLM::AI::Api::OpenAICompletions do
       {"type" => "reasoning.text"},
     ]}, "finish_reason" => JSON::Any.new(nil)}]}.to_json
     body = sse_body([think, details1, details2, final_chunk("stop", usage_json(5, 2))])
-    api = MockApi.new.serve(body).start
+    api  = MockApi.new.serve(body).start
     begin
-      model = kimi_model("http://127.0.0.1:#{api.port}")
+      model  = kimi_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
       events = [] of LLM::AI::StreamEvent
       stream.each { |event| events << event }
@@ -398,7 +398,7 @@ describe LLM::AI::Api::OpenAICompletions do
       events.any?(LLM::AI::StreamEvent::ThinkingDelta).should be_true
       events.any?(LLM::AI::StreamEvent::ThinkingEnd).should be_true
       result = stream.result
-      block = result.content.select(LLM::AI::ThinkingContent).first.not_nil!
+      block  = result.content.select(LLM::AI::ThinkingContent).first.not_nil!
       block.thinking.should eq "thinking "
       merged = JSON.parse(%([{"type":"reasoning.text","text":"abc","signature":"sig1"},{"type":"reasoning.summary","summary":"s"},{"type":"reasoning.encrypted","data":"enc"},{"type":"reasoning.text","text":"d"}]))
       JSON.parse(block.thinking_signature.not_nil!).should eq merged
@@ -412,12 +412,12 @@ describe LLM::AI::Api::OpenAICompletions do
   end
 
   it "replays tool results with image placeholders and a synthetic user message" do
-    with_text = LLM::AI::ToolResultMessage.new("t0", "txt", [LLM::AI::TextContent.new("a"), LLM::AI::TextContent.new("b")] of LLM::AI::ContentBlock, Time.utc)
+    with_text  = LLM::AI::ToolResultMessage.new("t0", "txt", [LLM::AI::TextContent.new("a"), LLM::AI::TextContent.new("b")] of LLM::AI::ContentBlock, Time.utc)
     image_only = LLM::AI::ToolResultMessage.new("t1", "shot", [LLM::AI::ImageContent.new("aGVsbG8=", "image/png")] of LLM::AI::ContentBlock, Time.utc)
-    empty = LLM::AI::ToolResultMessage.new("t2", "empty", [] of LLM::AI::ContentBlock, Time.utc)
-    context = LLM::AI::Context.new([with_text, image_only, empty] of LLM::AI::Message)
-    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(vision_model, context, LLM::AI::StreamOptions.new))
-    messages = payload["messages"].as_a
+    empty      = LLM::AI::ToolResultMessage.new("t2", "empty", [] of LLM::AI::ContentBlock, Time.utc)
+    context    = LLM::AI::Context.new([with_text, image_only, empty] of LLM::AI::Message)
+    payload    = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(vision_model, context, LLM::AI::StreamOptions.new))
+    messages   = payload["messages"].as_a
     messages.size.should eq 5
     messages[0]["role"].should eq "tool"
     messages[0]["content"].should eq "a\nb"
@@ -436,9 +436,9 @@ describe LLM::AI::Api::OpenAICompletions do
 
   it "omits tool result extras without compat flags or image input" do
     tool_result = LLM::AI::ToolResultMessage.new("t1", "shot", [LLM::AI::ImageContent.new("aGVsbG8=", "image/png")] of LLM::AI::ContentBlock, Time.utc)
-    context = LLM::AI::Context.new([tool_result] of LLM::AI::Message)
-    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new))
-    messages = payload["messages"].as_a
+    context     = LLM::AI::Context.new([tool_result] of LLM::AI::Message)
+    payload     = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new))
+    messages    = payload["messages"].as_a
     messages.size.should eq 1
     messages[0]["content"].should eq "(see attached image)"
     messages[0].as_h.has_key?("name").should be_false
@@ -446,9 +446,9 @@ describe LLM::AI::Api::OpenAICompletions do
 
   it "sets duration_ms on the final message" do
     body = sse_body([content_chunk("hi"), final_chunk("stop", usage_json(2, 1))])
-    api = MockApi.new.serve(body).start
+    api  = MockApi.new.serve(body).start
     begin
-      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      model  = deepseek_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
       events = [] of LLM::AI::StreamEvent
       stream.each { |event| events << event }
@@ -461,18 +461,18 @@ describe LLM::AI::Api::OpenAICompletions do
   end
 
   it "produces byte-identical payloads for the same context" do
-    tool = LLM::AI::Tool.new("lookup", "look up", JSON.parse(%({"type":"object","properties":{"q":{"type":"string"}}})))
+    tool    = LLM::AI::Tool.new("lookup", "look up", JSON.parse(%({"type":"object","properties":{"q":{"type":"string"}}})))
     context = LLM::AI::Context.new([LLM::AI::UserMessage.new("hi", Time.utc)] of LLM::AI::Message, tools: [tool])
-    a = LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new)
-    b = LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new)
+    a       = LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new)
+    b       = LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, context, LLM::AI::StreamOptions.new)
     a.should eq b
   end
 
   it "serializes tool parameters with sorted keys regardless of insertion order" do
     tool_a = LLM::AI::Tool.new("t", "d", JSON.parse(%({"type":"object","properties":{"b":{"type":"string"},"a":{"type":"number"}}})))
     tool_b = LLM::AI::Tool.new("t", "d", JSON.parse(%({"properties":{"a":{"type":"number"},"b":{"type":"string"}},"type":"object"})))
-    a = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, LLM::AI::Context.new([] of LLM::AI::Message, tools: [tool_a]), LLM::AI::StreamOptions.new))
-    b = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, LLM::AI::Context.new([] of LLM::AI::Message, tools: [tool_b]), LLM::AI::StreamOptions.new))
+    a      = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, LLM::AI::Context.new([] of LLM::AI::Message, tools: [tool_a]), LLM::AI::StreamOptions.new))
+    b      = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, LLM::AI::Context.new([] of LLM::AI::Message, tools: [tool_b]), LLM::AI::StreamOptions.new))
     a["tools"][0]["function"]["parameters"].to_json.should eq b["tools"][0]["function"]["parameters"].to_json
   end
 

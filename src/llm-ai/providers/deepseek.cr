@@ -1,4 +1,4 @@
-# src/llm/ai/providers/deepseek.cr
+# src/llm-ai/providers/deepseek.cr
 module LLM::AI::DeepSeekProvider
   def self.provider : Provider
     Provider.new(

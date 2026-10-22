@@ -1,12 +1,12 @@
-# src/llm/ai/api/simple_options.cr
+# src/llm-ai/api/simple_options.cr
 module LLM::AI
   struct ResolvedOptions
-    getter max_tokens : Int32?
-    getter temperature : Float64?
-    getter thinking_enabled : Bool
+    getter max_tokens             : Int32?
+    getter temperature            : Float64?
+    getter thinking_enabled       : Bool
     getter thinking_budget_tokens : Int32?
-    getter effort : String?
-    getter sampling_params : Hash(String, JSON::Any)
+    getter effort                 : String?
+    getter sampling_params        : Hash(String, JSON::Any)
 
     def initialize(@max_tokens, @temperature, @thinking_enabled, @thinking_budget_tokens, @effort, @sampling_params)
     end
@@ -17,10 +17,10 @@ module LLM::AI
 
     def self.resolve(model : Model, options : StreamOptions) : ResolvedOptions
       thinking_enabled = model.reasoning && (options.thinking_enabled == true || !options.thinking_level.nil?)
-      level = options.thinking_level
-      budget = thinking_enabled ? budget_for(level) : nil
-      effort = thinking_enabled ? effort_for(model, level) : nil
-      max_tokens = options.max_tokens
+      level            = options.thinking_level
+      budget           = thinking_enabled ? budget_for(level) : nil
+      effort           = thinking_enabled ? effort_for(model, level) : nil
+      max_tokens       = options.max_tokens
       if thinking_enabled && max_tokens && budget
         resolved_max = Math.min(max_tokens + budget, model.max_tokens)
         if budget > resolved_max - 1024

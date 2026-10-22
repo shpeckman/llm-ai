@@ -1,4 +1,4 @@
-# src/llm/ai/auth/kimi_oauth.cr
+# src/llm-ai/auth/kimi_oauth.cr
 require "uri"
 require "../http"
 
@@ -17,7 +17,7 @@ module LLM::AI::Auth
     end
 
     private struct PollResult
-      getter status : PollStatus
+      getter status     : PollStatus
       getter credential : OAuthCredential?
 
       def initialize(@status : PollStatus, @credential : OAuthCredential? = nil)
@@ -25,12 +25,12 @@ module LLM::AI::Auth
     end
 
     private struct DeviceAuthorization
-      getter device_code : String
-      getter user_code : String
-      getter verification_uri : String
+      getter device_code               : String
+      getter user_code                 : String
+      getter verification_uri          : String
       getter verification_uri_complete : String
-      getter interval : Int32?
-      getter expires_in : Int32?
+      getter interval                  : Int32?
+      getter expires_in                : Int32?
 
       def initialize(@device_code, @user_code, @verification_uri, @verification_uri_complete, @interval, @expires_in)
       end
@@ -38,8 +38,8 @@ module LLM::AI::Auth
 
     def self.login(interaction : Interaction, client_id : String = CLIENT_ID, auth_host : String? = nil,
                    *, interval_seconds : Int32 = 5, slow_down_seconds : Int32 = 5, wait_before_first_poll : Bool = true) : OAuthCredential
-      host = resolve_host(auth_host)
-      device = request_device_authorization(host, client_id)
+      host     = resolve_host(auth_host)
+      device   = request_device_authorization(host, client_id)
       interval = Math.max(device.interval || interval_seconds, 1)
       interaction.notify(DeviceCode.new(
         device.user_code,
@@ -99,9 +99,9 @@ module LLM::AI::Auth
     end
 
     private def self.request_device_authorization(host : String, client_id : String) : DeviceAuthorization
-      body = HTTP::Params.encode({"client_id" => client_id})
+      body          = HTTP::Params.encode({"client_id" => client_id})
       response_body = post_form(host, "/api/oauth/device_authorization", body)
-      json = JSON.parse(response_body)
+      json          = JSON.parse(response_body)
       DeviceAuthorization.new(
         json["device_code"].as_s,
         json["user_code"].as_s,
@@ -123,9 +123,9 @@ module LLM::AI::Auth
       rescue ex : Http::Error
         return parse_poll_error(ex)
       end
-      json = JSON.parse(response_body)
-      access = json["access_token"]?.try(&.as_s)
-      refresh = json["refresh_token"]?.try(&.as_s)
+      json       = JSON.parse(response_body)
+      access     = json["access_token"]?.try(&.as_s)
+      refresh    = json["refresh_token"]?.try(&.as_s)
       expires_in = json["expires_in"]?.try(&.as_i)
       if access.nil? || refresh.nil? || expires_in.nil?
         raise Error.new("Kimi token response missing fields")
@@ -155,10 +155,10 @@ module LLM::AI::Auth
 
     private def self.post_token(host : String, body : String) : OAuthCredential
       response_body = post_form(host, "/api/oauth/token", body)
-      json = JSON.parse(response_body)
-      access = json["access_token"]?.try(&.as_s)
-      refresh = json["refresh_token"]?.try(&.as_s)
-      expires_in = json["expires_in"]?.try(&.as_i)
+      json          = JSON.parse(response_body)
+      access        = json["access_token"]?.try(&.as_s)
+      refresh       = json["refresh_token"]?.try(&.as_s)
+      expires_in    = json["expires_in"]?.try(&.as_i)
       if access.nil? || refresh.nil? || expires_in.nil?
         raise Error.new("Kimi token response missing fields")
       end

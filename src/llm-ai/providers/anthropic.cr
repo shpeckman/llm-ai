@@ -1,4 +1,4 @@
-# src/llm/ai/providers/anthropic.cr
+# src/llm-ai/providers/anthropic.cr
 module LLM::AI::AnthropicProvider
   def self.provider : Provider
     Provider.new(

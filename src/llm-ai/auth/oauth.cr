@@ -1,4 +1,4 @@
-# src/llm/ai/auth/oauth.cr
+# src/llm-ai/auth/oauth.cr
 require "base64"
 require "digest/sha256"
 require "http/server"
@@ -67,7 +67,7 @@ module LLM::AI::Auth
   end
 
   class AuthUrl < AuthEvent
-    getter url : String
+    getter url          : String
     getter instructions : String
 
     def initialize(@url : String, @instructions : String)
@@ -75,9 +75,9 @@ module LLM::AI::Auth
   end
 
   class DeviceCode < AuthEvent
-    getter user_code : String
-    getter verification_uri : String
-    getter interval_seconds : Int32
+    getter user_code          : String
+    getter verification_uri   : String
+    getter interval_seconds   : Int32
     getter expires_in_seconds : Int32
 
     def initialize(@user_code : String, @verification_uri : String, @interval_seconds : Int32, @expires_in_seconds : Int32)
@@ -93,7 +93,7 @@ module LLM::AI::Auth
 
   module PKCE
     def self.generate : {String, String}
-      verifier = Base64.urlsafe_encode(Random::Secure.random_bytes(32), padding: false)
+      verifier  = Base64.urlsafe_encode(Random::Secure.random_bytes(32), padding: false)
       challenge = Base64.urlsafe_encode(Digest::SHA256.digest(verifier), padding: false)
       {verifier, challenge}
     end
@@ -102,25 +102,25 @@ module LLM::AI::Auth
   class OAuthCallbackServer
     getter redirect_uri : String
 
-    @server : HTTP::Server
-    @tcp : TCPServer
-    @claimed : Bool
-    @code_channel : Channel(String)
+    @server          : HTTP::Server
+    @tcp             : TCPServer
+    @claimed         : Bool
+    @code_channel    : Channel(String)
     @failure_channel : Channel(String)
-    @listening : Bool
+    @listening       : Bool
 
     def initialize(@host : String, @path : String, @expected_state : String, @complete : String -> String?)
-      @claimed = false
-      @code_channel = Channel(String).new(1)
+      @claimed         = false
+      @code_channel    = Channel(String).new(1)
       @failure_channel = Channel(String).new(1)
-      @server = HTTP::Server.new { |context| handle(context) }
+      @server          = HTTP::Server.new { |context| handle(context) }
       @tcp = begin
         TCPServer.new(@host, 53692)
       rescue Socket::BindError
         TCPServer.new(@host, 0)
       end
       @server.bind(@tcp)
-      @listening = false
+      @listening    = false
       @redirect_uri = "http://#{@host}:#{port}#{@path}"
     end
 
@@ -150,7 +150,7 @@ module LLM::AI::Auth
     end
 
     private def handle(context : HTTP::Server::Context) : Nil
-      request = context.request
+      request  = context.request
       response = context.response
       response.content_type = "text/html; charset=utf-8"
       if request.method != "GET" || request.path != @path

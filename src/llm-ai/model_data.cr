@@ -1,4 +1,4 @@
-# src/llm/ai/model_data.cr
+# src/llm-ai/model_data.cr
 module LLM::AI::ModelData
   class Error < Exception
   end
@@ -6,19 +6,19 @@ module LLM::AI::ModelData
   private struct Entry
     include JSON::Serializable
 
-    getter id : String
-    getter name : String
-    getter base_url : String
-    getter api : ApiKind
-    getter input : Array(InputKind)
-    getter context_window : Int32
-    getter max_tokens : Int32
-    getter reasoning : Bool
-    getter cost : JSON::Any
+    getter id                 : String
+    getter name               : String
+    getter base_url           : String
+    getter api                : ApiKind
+    getter input              : Array(InputKind)
+    getter context_window     : Int32
+    getter max_tokens         : Int32
+    getter reasoning          : Bool
+    getter cost               : JSON::Any
     getter thinking_level_map : Hash(String, String?)?
-    getter prompt_cache : Bool?
-    getter sampling_params : Hash(String, JSON::Any)?
-    getter compat : JSON::Any?
+    getter prompt_cache       : Bool?
+    getter sampling_params    : Hash(String, JSON::Any)?
+    getter compat             : JSON::Any?
 
     def initialize(@id, @name, @base_url, @api, @input, @context_window, @max_tokens, @reasoning, @cost,
                    @thinking_level_map = nil, @prompt_cache = nil, @sampling_params = nil, @compat = nil)
@@ -62,10 +62,10 @@ module LLM::AI::ModelData
   end
 
   private def self.build_cost(raw : JSON::Any) : ModelCost
-    input = raw["input"].as_f
-    output = raw["output"].as_f
-    cache_read = raw["cache_read"].as_f
-    cache_write = raw["cache_write"].as_f
+    input          = raw["input"].as_f
+    output         = raw["output"].as_f
+    cache_read     = raw["cache_read"].as_f
+    cache_write    = raw["cache_write"].as_f
     cache_write_1h = raw["cache_write_1h"]?.try(&.as_f)
     tiers = (raw["tiers"]? || JSON::Any.new([] of JSON::Any)).as_a.map do |tier|
       CostTier.new(tier["above"].as_i, build_cost(tier["cost"]))

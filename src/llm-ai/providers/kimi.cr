@@ -1,4 +1,4 @@
-# src/llm/ai/providers/kimi.cr
+# src/llm-ai/providers/kimi.cr
 module LLM::AI::KimiProvider
   def self.provider : Provider
     Provider.new(

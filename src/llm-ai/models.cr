@@ -1,4 +1,4 @@
-# src/llm/ai/models.cr
+# src/llm-ai/models.cr
 module LLM::AI
   class ModelsError < Exception
     getter kind : String
@@ -9,14 +9,14 @@ module LLM::AI
   end
 
   class MessageStream
-    @channel : Channel(StreamEvent)
+    @channel  : Channel(StreamEvent)
     @terminal : StreamEvent?
-    @drained : Bool
+    @drained  : Bool
 
     def initialize(@abort : AbortHandle? = nil)
-      @channel = Channel(StreamEvent).new
+      @channel  = Channel(StreamEvent).new
       @terminal = nil
-      @drained = false
+      @drained  = false
     end
 
     def push(event : StreamEvent) : Nil
@@ -59,20 +59,20 @@ module LLM::AI
   end
 
   struct Provider
-    getter id : String
-    getter name : String
+    getter id       : String
+    getter name     : String
     getter base_url : String
-    getter headers : Hash(String, String)
-    getter auth : Auth::ProviderAuth
-    getter models : Array(Model)
-    getter stream : Proc(Model, Context, StreamOptions, Auth::AuthResult, AbortHandle?, MessageStream)
+    getter headers  : Hash(String, String)
+    getter auth     : Auth::ProviderAuth
+    getter models   : Array(Model)
+    getter stream   : Proc(Model, Context, StreamOptions, Auth::AuthResult, AbortHandle?, MessageStream)
 
     def initialize(@id, @name, @base_url, @headers, @auth, @models, @stream)
     end
   end
 
   class Models
-    @providers : Hash(String, Provider)
+    @providers   : Hash(String, Provider)
     getter store : CredentialStore
 
     def initialize(@store : CredentialStore, @ctx : Auth::AuthContext)
@@ -111,9 +111,9 @@ module LLM::AI
     end
 
     def stream(model : Model, context : Context, options : StreamOptions? = nil, abort : AbortHandle? = nil) : MessageStream
-      provider = provider(model.provider)
+      provider    = provider(model.provider)
       auth_result = Auth.resolve(model.provider, provider.auth, @store, @ctx)
-      normalized = Transform.normalize(context, model)
+      normalized  = Transform.normalize(context, model)
       provider.stream.call(model, normalized, options || StreamOptions.new, auth_result, abort)
     end
 

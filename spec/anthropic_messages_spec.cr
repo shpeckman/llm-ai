@@ -85,7 +85,7 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
+      model  = anthropic_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
       events = [] of LLM::AI::StreamEvent
       stream.each { |event| events << event }
@@ -126,7 +126,7 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
+      model  = anthropic_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
       stream.result.stop_reason.should eq LLM::AI::StopReason::Length
     ensure
@@ -140,7 +140,7 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
+      model  = anthropic_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
       stream.result.stop_reason.should eq LLM::AI::StopReason::ToolUse
     ensure
@@ -156,8 +156,8 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
+      model    = anthropic_model("http://127.0.0.1:#{api.port}")
+      stream   = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
       terminal = nil
       stream.each do |event|
         terminal = event if event.is_a?(LLM::AI::StreamEvent::Error)
@@ -179,8 +179,8 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
+      model    = anthropic_model("http://127.0.0.1:#{api.port}")
+      stream   = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
       terminal = nil
       stream.each do |event|
         terminal = event if event.is_a?(LLM::AI::StreamEvent::Error)
@@ -199,8 +199,8 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
+      model    = anthropic_model("http://127.0.0.1:#{api.port}")
+      stream   = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
       terminal = nil
       stream.each do |event|
         terminal = event if event.is_a?(LLM::AI::StreamEvent::Error)
@@ -224,10 +224,10 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
-      abort = LLM::AI::AbortHandle.new
-      stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, abort)
-      deltas = 0
+      model    = anthropic_model("http://127.0.0.1:#{api.port}")
+      abort    = LLM::AI::AbortHandle.new
+      stream   = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, abort)
+      deltas   = 0
       terminal = nil
       stream.each do |event|
         case event
@@ -248,10 +248,10 @@ describe LLM::AI::Api::AnthropicMessages do
   end
 
   it "retries a 500 then succeeds" do
-    ok = anthropic_sse([message_start, end_turn_delta, message_stop])
+    ok  = anthropic_sse([message_start, end_turn_delta, message_stop])
     api = ScriptedApi.new([{500, {} of String => String, "boom"}, {200, {"Content-Type" => "text/event-stream"}, ok}]).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
+      model  = anthropic_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new(max_retries: 1), api_key_auth, nil)
       stream.result.stop_reason.should eq LLM::AI::StopReason::Stop
       api.requests.should eq 2
@@ -326,7 +326,7 @@ describe LLM::AI::Api::AnthropicMessages do
       "anthropic", "claude-test", Time.utc)
     context = LLM::AI::Context.new([assistant] of LLM::AI::Message)
     payload = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(anthropic_model, context, LLM::AI::StreamOptions.new, false))
-    blocks = payload["messages"][0]["content"].as_a
+    blocks  = payload["messages"][0]["content"].as_a
     blocks[0]["type"].should eq "redacted_thinking"
     blocks[0]["data"].should eq "enc"
     blocks[1]["type"].should eq "text"
@@ -335,10 +335,10 @@ describe LLM::AI::Api::AnthropicMessages do
 
   it "holds back mid-conversation system messages until the next assistant message" do
     assistant = LLM::AI::AssistantMessage.new([LLM::AI::TextContent.new("ok")] of LLM::AI::ContentBlock, "anthropic", "claude-test", Time.utc)
-    update = LLM::AI::SystemMessage.new("sys", Time.utc, {"rules" => "be kind"} of String => String?)
-    context = LLM::AI::Context.new([LLM::AI::UserMessage.new("hi", Time.utc), update, assistant] of LLM::AI::Message)
-    payload = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(anthropic_model, context, LLM::AI::StreamOptions.new, false))
-    messages = payload["messages"].as_a
+    update    = LLM::AI::SystemMessage.new("sys", Time.utc, {"rules" => "be kind"} of String => String?)
+    context   = LLM::AI::Context.new([LLM::AI::UserMessage.new("hi", Time.utc), update, assistant] of LLM::AI::Message)
+    payload   = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(anthropic_model, context, LLM::AI::StreamOptions.new, false))
+    messages  = payload["messages"].as_a
     messages[0]["role"].should eq "user"
     messages[1]["role"].should eq "system"
     messages[1]["content"].should eq "sys\n\nUpdated system prompt section \"rules\":\n\nbe kind"
@@ -360,8 +360,8 @@ describe LLM::AI::Api::AnthropicMessages do
       context = LLM::AI::Context.new(
         [LLM::AI::UserMessage.new("run a command", Time.utc)] of LLM::AI::Message,
         nil, [LLM::AI::Tool.new("bash", "run bash", JSON.parse("{\"type\":\"object\"}"))])
-      stream = LLM::AI::Api::AnthropicMessages.stream(model, context, LLM::AI::StreamOptions.new, oauth_auth, nil)
-      result = stream.result
+      stream  = LLM::AI::Api::AnthropicMessages.stream(model, context, LLM::AI::StreamOptions.new, oauth_auth, nil)
+      result  = stream.result
       headers = api.last_headers.not_nil!
       headers["Authorization"].should eq "Bearer sk-ant-oat-token"
       headers["user-agent"].should eq "claude-cli/2.1.280"
@@ -381,9 +381,9 @@ describe LLM::AI::Api::AnthropicMessages do
 
   it "sends x-api-key for non-OAuth auth" do
     body = anthropic_sse([message_start, end_turn_delta, message_stop])
-    api = MockApi.new.serve(body).start
+    api  = MockApi.new.serve(body).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
+      model  = anthropic_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
       stream.result.stop_reason.should eq LLM::AI::StopReason::Stop
       headers = api.last_headers.not_nil!
@@ -414,7 +414,7 @@ describe LLM::AI::Api::AnthropicMessages do
 
   it "sends fallbacks, the fallback beta, and prices usage with the fallback cost" do
     fallback = LLM::AI::FallbackModel.new("anthropic", "claude-fallback", LLM::AI::ModelCost.new(1.0, 2.0, 0.3, 0.4, 0.8))
-    compat = LLM::AI::Compat.new(allowed_fallback_models: [fallback] of LLM::AI::FallbackModel)
+    compat   = LLM::AI::Compat.new(allowed_fallback_models: [fallback] of LLM::AI::FallbackModel)
     body = anthropic_sse([
       {"message_start", "{\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"model\":\"claude-fallback\",\"usage\":{\"input_tokens\":10,\"output_tokens\":3,\"cache_read_input_tokens\":2,\"cache_creation_input_tokens\":1}}}"},
       end_turn_delta,
@@ -422,7 +422,7 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model_with_compat(compat, "http://127.0.0.1:#{api.port}")
+      model  = anthropic_model_with_compat(compat, "http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
       result = stream.result
       result.response_model.should eq "claude-fallback"
@@ -444,7 +444,7 @@ describe LLM::AI::Api::AnthropicMessages do
 
   it "keeps the requested model cost when the response model is not a known fallback" do
     fallback = LLM::AI::FallbackModel.new("anthropic", "claude-fallback", LLM::AI::ModelCost.new(1.0, 2.0, 0.3, 0.4, 0.8))
-    compat = LLM::AI::Compat.new(allowed_fallback_models: [fallback] of LLM::AI::FallbackModel)
+    compat   = LLM::AI::Compat.new(allowed_fallback_models: [fallback] of LLM::AI::FallbackModel)
     body = anthropic_sse([
       {"message_start", "{\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"model\":\"other-model\",\"usage\":{\"input_tokens\":10,\"output_tokens\":3,\"cache_read_input_tokens\":2,\"cache_creation_input_tokens\":1}}}"},
       end_turn_delta,
@@ -452,9 +452,9 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model_with_compat(compat, "http://127.0.0.1:#{api.port}")
+      model  = anthropic_model_with_compat(compat, "http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
-      usage = stream.result.usage.not_nil!
+      usage  = stream.result.usage.not_nil!
       usage.cost.should eq LLM::AI::Pricing.calculate(model, usage)
     ensure
       api.close
@@ -470,8 +470,8 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
+      model    = anthropic_model("http://127.0.0.1:#{api.port}")
+      stream   = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
       terminal = nil
       stream.each do |event|
         terminal = event if event.is_a?(LLM::AI::StreamEvent::Error)
@@ -495,7 +495,7 @@ describe LLM::AI::Api::AnthropicMessages do
     ])
     api = MockApi.new.serve(body).start
     begin
-      model = anthropic_model("http://127.0.0.1:#{api.port}")
+      model  = anthropic_model("http://127.0.0.1:#{api.port}")
       stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, api_key_auth, nil)
       result = stream.result
       result.stop_reason.should eq LLM::AI::StopReason::Stop
@@ -559,8 +559,8 @@ describe LLM::AI::Api::AnthropicMessages do
 
   it "sends native tool additions and removals with the inline-tools beta" do
     compat = LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_changes: true)
-    body = anthropic_sse([message_start, end_turn_delta, message_stop])
-    api = MockApi.new.serve(body).start
+    body   = anthropic_sse([message_start, end_turn_delta, message_stop])
+    api    = MockApi.new.serve(body).start
     begin
       model = anthropic_model_with_compat(compat, "http://127.0.0.1:#{api.port}")
       update = LLM::AI::SystemMessage.new(
@@ -582,7 +582,7 @@ describe LLM::AI::Api::AnthropicMessages do
       headers = api.last_headers.not_nil!
       headers["anthropic-beta"].should contain "inline-tools-2026-09-15"
       request = JSON.parse(api.requests[0][2])
-      tools = request["tools"].as_a
+      tools   = request["tools"].as_a
       tools.size.should eq 2
       tools[0]["name"].should eq "weather"
       tools[1]["name"].should eq "__pi_deferred_placeholder__"

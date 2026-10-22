@@ -19,7 +19,7 @@ end
 describe LLM::AI::Pricing do
   it "prices the 1h portion at 2x input and the rest at the 5m rate" do
     model = anthropic_model
-    cost = LLM::AI::Pricing.calculate(model, usage(input: 100, cache_write: 1_000_000, cache_write_1h: 400_000))
+    cost  = LLM::AI::Pricing.calculate(model, usage(input: 100, cache_write: 1_000_000, cache_write_1h: 400_000))
     cost.cache_write.should be_close(7.75, 1e-9)
   end
 

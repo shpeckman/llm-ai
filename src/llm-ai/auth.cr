@@ -1,7 +1,7 @@
-# src/llm/ai/auth.cr
+# src/llm-ai/auth.cr
 module LLM::AI::Auth
   struct AuthContext
-    getter env : String -> String?
+    getter env         : String -> String?
     getter file_exists : String -> Bool
 
     def initialize(@env : String -> String?, @file_exists : String -> Bool)
@@ -16,7 +16,7 @@ module LLM::AI::Auth
   end
 
   struct ApiKeyAuth
-    getter name : String
+    getter name     : String
     getter env_vars : Array(String)
 
     def initialize(@name : String, @env_vars : Array(String))
@@ -32,11 +32,11 @@ module LLM::AI::Auth
   end
 
   struct OAuthAuth
-    getter name : String
+    getter name            : String
     getter is_subscription : Bool
-    getter login_label : String
-    getter login : Proc(Interaction, AuthHosts?, OAuthCredential)
-    getter refresh : Proc(String, AuthHosts?, OAuthCredential)
+    getter login_label     : String
+    getter login           : Proc(Interaction, AuthHosts?, OAuthCredential)
+    getter refresh         : Proc(String, AuthHosts?, OAuthCredential)
 
     def initialize(@name : String, @is_subscription : Bool, @login_label : String,
                    @login : Proc(Interaction, AuthHosts?, OAuthCredential),
@@ -46,15 +46,15 @@ module LLM::AI::Auth
 
   struct ProviderAuth
     getter api_key : ApiKeyAuth?
-    getter oauth : OAuthAuth?
+    getter oauth   : OAuthAuth?
 
     def initialize(@api_key : ApiKeyAuth? = nil, @oauth : OAuthAuth? = nil)
     end
   end
 
   struct ModelAuth
-    getter api_key : String?
-    getter headers : Hash(String, String)?
+    getter api_key  : String?
+    getter headers  : Hash(String, String)?
     getter base_url : String?
 
     def initialize(@api_key : String? = nil, @headers : Hash(String, String)? = nil, @base_url : String? = nil)
@@ -62,7 +62,7 @@ module LLM::AI::Auth
   end
 
   struct AuthResult
-    getter auth : ModelAuth
+    getter auth   : ModelAuth
     getter source : String?
 
     def initialize(@auth : ModelAuth, @source : String? = nil)
@@ -70,10 +70,10 @@ module LLM::AI::Auth
   end
 
   struct AuthOverrides
-    getter api_key : String?
-    getter env : Hash(String, String)?
+    getter api_key               : String?
+    getter env                   : Hash(String, String)?
     getter min_oauth_validity_ms : Int64
-    getter refresh_timeout : Time::Span
+    getter refresh_timeout       : Time::Span
 
     def initialize(@api_key : String? = nil, @env : Hash(String, String)? = nil, @min_oauth_validity_ms : Int64 = 300_000, @refresh_timeout : Time::Span = 15.seconds)
     end
@@ -102,7 +102,7 @@ module LLM::AI::Auth
     case kind
     when :api_key
       api_key_auth = auth.api_key || raise Error.new("Provider #{provider_id} has no API key auth")
-      input = interaction.prompt(:secret, "Enter #{api_key_auth.name}:")
+      input        = interaction.prompt(:secret, "Enter #{api_key_auth.name}:")
       store.modify(provider_id) { ApiKeyCredential.new(input) }
     when :oauth
       oauth_auth = auth.oauth || raise Error.new("Provider #{provider_id} has no OAuth auth")

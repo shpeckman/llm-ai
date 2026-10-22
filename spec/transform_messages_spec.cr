@@ -20,7 +20,77 @@ private def model(reasoning : Bool, vision : Bool = true) : LLM::AI::Model
     input, 1000, 1000, reasoning, LLM::AI::ModelCost.new(1.0, 1.0, 0.1, 1.0, nil))
 end
 
+private def compat_model(compat : LLM::AI::Compat) : LLM::AI::Model
+  LLM::AI::Model.new("m", "m", "p", "https://x", LLM::AI::ApiKind::OpenaiCompletions,
+    [LLM::AI::InputKind::Text], 1000, 1000, false, LLM::AI::ModelCost.new(1.0, 1.0, 0.1, 1.0, nil), compat: compat)
+end
+
+private def tool(name : String) : LLM::AI::Tool
+  LLM::AI::Tool.new(name, "#{name} tool", JSON.parse(%({"type":"object"})))
+end
+
+private def tool_transcript : Array(LLM::AI::Message)
+  [
+    LLM::AI::SystemMessage.new("lead", Time.utc, tools_added: [tool("a")]),
+    user_text("one"),
+    LLM::AI::SystemMessage.new("", Time.utc, tools_added: [tool("b")]),
+    user_text("two"),
+    LLM::AI::SystemMessage.new("", Time.utc, tools_removed: [LLM::AI::ToolReference.new("a")]),
+    user_text("three"),
+    LLM::AI::SystemMessage.new("", Time.utc, tools_added: [tool("c")]),
+    user_text("four"),
+  ] of LLM::AI::Message
+end
+
+private def tool_fields(context : LLM::AI::Context) : Array(Tuple(Array(String)?, Array(String)?))
+  context.messages.select(LLM::AI::SystemMessage).map do |message|
+    {message.tools_added.try(&.map(&.name)), message.tools_removed.try(&.map(&.name))}
+  end
+end
+
 describe LLM::AI::Transform do
+  it "sends the current transcript tools at the top level when the model has no mid-conversation tools" do
+    normalized = LLM::AI::Transform.normalize(LLM::AI::Context.new(tool_transcript), compat_model(LLM::AI::Compat.new))
+    normalized.tools.map(&.name).should eq ["b", "c"]
+    tool_fields(normalized).should eq [{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}]
+  end
+
+  it "folds tool changes up to the last removal for addition-only models" do
+    compat = LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_additions: true)
+    normalized = LLM::AI::Transform.normalize(LLM::AI::Context.new(tool_transcript), compat_model(compat))
+    normalized.tools.map(&.name).should eq ["b"]
+    tool_fields(normalized).should eq [{nil, nil}, {nil, nil}, {nil, nil}, {["c"], nil}]
+  end
+
+  it "keeps every later tool change in place for models with native tool changes" do
+    compat = LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_changes: true)
+    normalized = LLM::AI::Transform.normalize(LLM::AI::Context.new(tool_transcript), compat_model(compat))
+    normalized.tools.map(&.name).should eq ["a"]
+    tool_fields(normalized).should eq [{nil, nil}, {["b"], nil}, {nil, ["a"]}, {["c"], nil}]
+  end
+
+  it "treats context tools as the initial declaration" do
+    messages = [user_text("hi"), LLM::AI::SystemMessage.new("", Time.utc, tools_added: [tool("b")])] of LLM::AI::Message
+    plain = LLM::AI::Transform.normalize(LLM::AI::Context.new(messages, "prompt", [tool("a")]), compat_model(LLM::AI::Compat.new))
+    plain.system_prompt.should eq "prompt"
+    plain.tools.map(&.name).should eq ["a", "b"]
+    compat = LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_additions: true)
+    additive = LLM::AI::Transform.normalize(LLM::AI::Context.new(messages, "prompt", [tool("a")]), compat_model(compat))
+    additive.tools.map(&.name).should eq ["a"]
+    tool_fields(additive).should eq [{["b"], nil}]
+  end
+
+  it "keeps tool result details and usage" do
+    call = LLM::AI::ToolCall.new("t1", "lookup", JSON.parse("{}"))
+    usage = LLM::AI::Usage.new(1, 2, 0, 0, 3, LLM::AI::UsageCost.new(0.0, 0.0, 0.0, 0.0, 0.0))
+    result = LLM::AI::ToolResultMessage.new("t1", "lookup", [LLM::AI::TextContent.new("ok")] of LLM::AI::ContentBlock, Time.utc,
+      details: JSON.parse(%({"path":"/tmp"})), usage: usage)
+    context = LLM::AI::Context.new([assistant(call), result] of LLM::AI::Message)
+    normalized = LLM::AI::Transform.normalize(context, model(true)).messages[1].as(LLM::AI::ToolResultMessage)
+    normalized.details.should eq JSON.parse(%({"path":"/tmp"}))
+    normalized.usage.should eq usage
+  end
+
   it "drops aborted and errored assistant turns" do
     context = LLM::AI::Context.new([
       user_text("hi"),

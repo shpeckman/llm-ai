@@ -15,17 +15,23 @@ All functionality lives under the `LLM::AI` module.
 - Streaming via a typed event stream (`StreamEvent`) with a terminal
   `Done`/`Error` event.
 - Tool calling with JSON-schema definitions and partial-argument streaming.
+- Transcripts: system messages carry prompt sections and tool declarations,
+  with replay helpers (`Transcript`).
+- Tool-argument validation and coercion against JSON Schema (`Validation`).
 - Reasoning/thinking levels, effort, and adaptive thinking where supported.
 - Usage and per-model cost calculation (`Usage` / `UsageCost` / `Pricing`).
 - Prompt-cache retention control for Anthropic.
 - API-key and OAuth authentication with an on-disk credential store.
 - Retry with exponential backoff and `Retry-After` / `x-should-retry` support.
-- Cooperative cancellation via `AbortHandle`.
+- Cooperative cancellation via `AbortHandle`, with reasons and listeners.
 - Request/response/event hooks for observability.
+- Client identity: `User-Agent` and provider attribution headers.
+- A scripted faux provider for tests.
 
 ## Requirements
 
 - Crystal `>= 1.21.0`
+- The `typebox` shard (`github: shpeckman/typebox`), installed by `shards install`
 
 ## Installation
 
@@ -147,6 +153,11 @@ context = LLM::AI::Context.new(messages, system_prompt: "...", tools: [tool])
   `usage`, `stop_reason`, timing, and `end_turn`.
 - `ToolResultMessage` — a tool's result, keyed by `tool_call_id`.
 
+A `ToolResultMessage` also carries `is_error`, `duration_ms`, `details`
+(arbitrary JSON for logs or UI), and `usage` (the tool's own usage, if any).
+`AssistantMessage`, `ToolResultMessage`, and `SystemMessage` have
+`copy_with` for changed copies.
+
 `UserMessage` and `SystemMessage` require a `Time` timestamp (serialized as
 epoch milliseconds).
 
@@ -175,6 +186,59 @@ epoch milliseconds).
 
 `MessageStream#result` drains the stream and returns the final
 `AssistantMessage`, raising `ModelsError` if the stream failed.
+
+### Transcripts
+
+The leading `SystemMessage` of a message list is the system prompt; later
+system messages patch it. `content` adds instructions, `sections` replaces
+named sections (`nil` removes one), and `tools_added` / `tools_removed`
+change the declared tools. `LLM::AI::Transcript` replays them:
+
+```crystal
+messages = [
+  LLM::AI::Transcript.create_initial_system_message("Be brief.", [weather]).not_nil!,
+  LLM::AI::UserMessage.new("hi", Time.utc),
+  LLM::AI::SystemMessage.new("", Time.utc, {"skills" => "<skills>…</skills>"} of String => String?),
+] of LLM::AI::Message
+
+LLM::AI::Transcript.current_tools(messages)          # => [weather]
+LLM::AI::Transcript.current_system_prompt(messages)  # => "Be brief.\n\n<skills>…</skills>"
+```
+
+| Function | Meaning |
+| --- | --- |
+| `create_initial_system_message(prompt, tools)` | The leading system message for a prompt and tools, or `nil` when both are empty. |
+| `initial_system_message(messages)` | The leading system message, if any. |
+| `current_tools(messages)` | The tools after applying every removal and addition in order. |
+| `current_system_message(messages)` | Every system message replayed into one (content joined, sections patched, current tools). |
+| `current_system_prompt(messages)` | The replayed prompt text. |
+| `tool_state_changes(previous, current)` | `ToolStateChanges` (`tools_added`, `tools_removed`); a changed definition is a removal and an addition. |
+| `system_text(message)`, `system_update_text(message)` | A leading prompt, and a later system message as sent mid-conversation. |
+
+The helpers accept any `Array(Message)`, including lists with custom
+`Message` subclasses; they only read system messages.
+
+`Models#stream` resolves the transcript's tool declarations for the target
+model: models without mid-conversation tool changes get the current tools at
+the top level; Kimi-style models (`supports_mid_convo_tool_additions`) keep
+later additions in place after the last removal; Anthropic-style models
+(`supports_mid_convo_tool_changes`) keep every later change in place.
+`Context#tools` counts as a declaration before the first message.
+
+### Tool validation
+
+```crystal
+args = LLM::AI::Validation.validate_tool_call(tools, tool_call)    # finds the tool by name
+args = LLM::AI::Validation.validate_tool_arguments(tool, tool_call)
+```
+
+Validation works on a copy of the arguments: optional properties that are
+`null` but do not accept `null` are dropped, primitives are coerced to the
+schema's types (`"3"` to `3` for `integer`, `"true"` to `true`, numbers to
+strings, union members tried in order), and the result is checked with
+`TypeBox::Value.check`. A failure raises `ToolValidationError` listing each
+error path and the received arguments; a tool call whose arguments failed to
+parse (`arguments_error`) raises before validation.
 
 ### `StopReason`
 
@@ -209,6 +273,11 @@ Field                                 | Meaning
 `max_retries`                         | Retry count for retryable failures.
 `timeout_ms`                          | Per-request read timeout.
 `user_id`                             | User metadata (Anthropic).
+`api_key`                             | API key for this request; overrides stored and ambient credentials. Never serialized.
+`session_id`                          | Session identifier for session-aware providers and the faux provider's cache estimate.
+`thinking_budgets`                    | Token budgets per thinking level (`"minimal"`, `"low"`, `"medium"`, `"high"`); `xhigh` and `max` use `high`.
+`max_retry_delay_ms`                  | Longest server-requested retry wait (default 60 000); `0` removes the cap.
+`identity`                            | `ClientIdentity` (below).
 `sampling_params`                     | Raw per-request parameters merged last.
 `hooks`                               | `StreamHooks` callbacks (below).
 
@@ -270,6 +339,11 @@ end
 
 ### Cancellation
 
+`AbortHandle#abort(reason = AbortError.new(...))` or `abort(message)` aborts
+once; `aborted?`, `reason`, and `throw_if_aborted` read it, and
+`on_abort { |reason| }` registers a listener that runs once at abort and
+returns a remover.
+
 ```crystal
 abort = LLM::AI::AbortHandle.new
 
@@ -289,12 +363,63 @@ end
 ```crystal
 options = LLM::AI::StreamOptions.new(
   hooks: LLM::AI::StreamHooks.new(
-    on_payload:  ->(payload : JSON::Any, model : LLM::AI::Model) { payload },
-    on_response: ->(status : Int32, headers : HTTP::Headers) { },
-    on_event:    ->(event : LLM::AI::StreamEvent) { },
+    on_payload:        ->(payload : JSON::Any, model : LLM::AI::Model) { payload },
+    on_response:       ->(status : Int32, headers : HTTP::Headers) { },
+    on_event:          ->(event : LLM::AI::StreamEvent) { },
+    on_provider_event: ->(data : JSON::Any, model : LLM::AI::Model) { },
   ),
 )
 ```
+
+`on_provider_event` receives each parsed provider stream chunk before
+normalization.
+
+### Client identity
+
+```crystal
+identity = LLM::AI::ClientIdentity.new(
+  user_agent: :short,
+  attribution: LLM::AI::ClientAttribution.new("my-app", "https://my-app.example", ["cli-agent"]),
+)
+options = LLM::AI::StreamOptions.new(identity: identity)
+```
+
+Requests send a `User-Agent`: by default
+`llm-ai/<version> (<platform>; crystal/<version>; <arch>)`, `llm-ai` with
+`:short`, or any `String` given as `user_agent`; `version` replaces the
+library version. An `attribution` adds headers only for providers that read
+them: OpenRouter (`HTTP-Referer`, `X-OpenRouter-Title`,
+`X-OpenRouter-Categories`), NVIDIA NIM (`X-BILLING-INVOKE-ORIGIN`), and
+OpenCode (`x-opencode-client`). Explicit `headers` override identity headers.
+Anthropic OAuth requests keep the Claude Code identity instead.
+
+### Testing with the scripted faux provider
+
+```crystal
+alias Faux = LLM::AI::FauxProvider
+
+faux = Faux.scripted
+faux.responses = [
+  Faux.assistant_message([Faux.text("Checking."), Faux.tool_call("lookup", {q: "x"}, id: "c1")] of LLM::AI::ContentBlock, stop_reason: :tool_use),
+  Faux.assistant_message("Done."),
+] of Faux::ResponseStep
+faux.append_response { |context, options, state, model| Faux.assistant_message("call #{state.call_count}") }
+
+models = LLM::AI::Models.build
+models.register(faux.provider)
+message = models.chat(faux.model, context)
+```
+
+`Faux.scripted(provider: "faux", models: [ModelDefinition.new("faux-1")],
+tokens_per_second: nil, token_size: 3..5)` streams each queued response
+block by block in chunks of `token_size` tokens (four characters each),
+paced at `tokens_per_second` when given. Responses are `AssistantMessage`s or
+factories called with the request; an empty queue answers with an error
+message. Usage is estimated from the prompt text, with cache reads against
+the previous prompt of the same `session_id`. The handle also has `model`,
+`model(id)`, `models`, `state` (`call_count`), `append_responses`, and
+`pending_response_count`. Registering it with the id `faux` replaces the
+built-in fixed faux provider.
 
 ### Usage and cost
 
@@ -329,6 +454,12 @@ are reported as `usage.cache_read` and billed at the model's `cache_read` rate.
   `LLM::AI::Model`, `LLM::AI::Provider`.
 - `LLM::AI::AbortHandle`, `LLM::AI::AbortError`, `LLM::AI::ModelsError`.
 - `LLM::AI::Pricing.calculate`, `LLM::AI::Transform.normalize`.
+- `LLM::AI::Transcript`, `LLM::AI::ToolStateChanges`, `LLM::AI::ToolSupport`.
+- `LLM::AI::Validation`, `LLM::AI::ToolValidationError`.
+- `LLM::AI::ClientIdentity`, `LLM::AI::ClientAttribution`,
+  `LLM::AI::UserAgentMode`, `LLM::AI::Identity`, `LLM::AI::VERSION`.
+- `LLM::AI::FauxProvider.scripted` and its helpers (`text`, `thinking`,
+  `tool_call`, `assistant_message`).
 - Auth: `LLM::AI::Auth` (`.resolve`, `.login`, `.logout`),
   `LLM::AI::FileCredentialStore`, `LLM::AI::CredentialStore`,
   `LLM::AI::Auth::Interaction`, `LLM::AI::Auth::CLIInteraction`.

@@ -2,8 +2,8 @@
 require "http/client"
 
 module LLM::AI::Http
-  RETRYABLE_STATUSES      = [408, 409, 429]
-  MAX_RETRY_DELAY_SECONDS = 60
+  RETRYABLE_STATUSES = [408, 409, 429]
+  MAX_RETRY_DELAY    = 60.seconds
 
   class Error < Exception
     getter status : Int32
@@ -19,8 +19,21 @@ module LLM::AI::Http
     getter connect_timeout : Time::Span
     getter read_timeout : Time::Span
     getter max_retries : Int32
+    getter max_retry_delay : Time::Span?
 
-    def initialize(@connect_timeout : Time::Span = 10.seconds, @read_timeout : Time::Span = 10.minutes, @max_retries : Int32 = 0)
+    def initialize(@connect_timeout : Time::Span = 10.seconds, @read_timeout : Time::Span = 10.minutes, @max_retries : Int32 = 0, @max_retry_delay : Time::Span? = MAX_RETRY_DELAY)
+    end
+
+    def self.for(options : StreamOptions) : Options
+      max_retry_delay = case ms = options.max_retry_delay_ms
+                        in Nil   then MAX_RETRY_DELAY
+                        in Int32 then ms > 0 ? ms.milliseconds : nil
+                        end
+      new(
+        read_timeout: options.timeout_ms.try(&.milliseconds) || 10.minutes,
+        max_retries: options.max_retries,
+        max_retry_delay: max_retry_delay,
+      )
     end
   end
 
@@ -31,7 +44,7 @@ module LLM::AI::Http
       return if error.nil?
       raise AbortError.new("Request was aborted") if abort.try(&.aborted?)
       if retryable?(error) && retries < options.max_retries
-        delay = retry_delay(error, retries)
+        delay = retry_delay(error, retries, options.max_retry_delay)
         abortable_sleep(delay, abort)
         retries += 1
         next
@@ -96,12 +109,12 @@ module LLM::AI::Http
     error.status >= 500 || RETRYABLE_STATUSES.includes?(error.status)
   end
 
-  private def self.retry_delay(error : Error, attempt : Int32) : Time::Span
+  private def self.retry_delay(error : Error, attempt : Int32, max_delay : Time::Span?) : Time::Span
     if ms = error.headers["retry-after-ms"]?
       begin
         value = ms.to_f
-        if value > MAX_RETRY_DELAY_SECONDS * 1000
-          raise Error.new(error.status, "retry-after-ms #{ms}ms exceeds maximum retry delay of #{MAX_RETRY_DELAY_SECONDS}s", error.headers, error.body)
+        if max_delay && value > max_delay.total_milliseconds
+          raise Error.new(error.status, "retry-after-ms #{ms}ms exceeds maximum retry delay of #{delay_text(max_delay)}", error.headers, error.body)
         end
         return value.milliseconds if value.finite?
       rescue ArgumentError
@@ -110,14 +123,19 @@ module LLM::AI::Http
     if secs = error.headers["retry-after"]?
       value = retry_after_seconds(secs)
       if value
-        if value > MAX_RETRY_DELAY_SECONDS
-          raise Error.new(error.status, "retry-after #{secs}s exceeds maximum retry delay of #{MAX_RETRY_DELAY_SECONDS}s", error.headers, error.body)
+        if max_delay && value > max_delay.total_seconds
+          raise Error.new(error.status, "retry-after #{secs}s exceeds maximum retry delay of #{delay_text(max_delay)}", error.headers, error.body)
         end
         return value.seconds
       end
     end
     base = Math.min(0.5 * (2 ** attempt), 8.0)
     (base * (0.75 + rand * 0.25)).seconds
+  end
+
+  private def self.delay_text(delay : Time::Span) : String
+    seconds = delay.total_seconds
+    seconds == seconds.to_i ? "#{seconds.to_i}s" : "#{delay.total_milliseconds.to_i64}ms"
   end
 
   private def self.retry_after_seconds(raw : String) : Float64?

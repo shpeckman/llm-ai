@@ -1,5 +1,8 @@
 # src/llm-ai.cr
 require "./llm-ai/types"
+require "./llm-ai/identity"
+require "./llm-ai/transcript"
+require "./llm-ai/validation"
 require "./llm-ai/abort"
 require "./llm-ai/partial_json"
 require "./llm-ai/sse"
@@ -18,10 +21,12 @@ require "./llm-ai/api/jsonify"
 require "./llm-ai/api/openai_completions"
 require "./llm-ai/api/anthropic_messages"
 require "./llm-ai/providers/faux"
+require "./llm-ai/providers/scripted_faux"
 require "./llm-ai/providers/deepseek"
 require "./llm-ai/providers/anthropic"
 require "./llm-ai/providers/kimi"
 require "./llm-ai/providers/moonshot"
 
 module LLM::AI
+  VERSION = {{ read_file("#{__DIR__}/../shard.yml").lines.select(&.starts_with?("version:")).first.split(":")[1].strip }}
 end

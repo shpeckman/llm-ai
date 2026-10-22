@@ -18,7 +18,7 @@ module LLM::AI
     def self.resolve(model : Model, options : StreamOptions) : ResolvedOptions
       thinking_enabled = model.reasoning && (options.thinking_enabled == true || !options.thinking_level.nil?)
       level = options.thinking_level
-      budget = thinking_enabled ? budget_for(level) : nil
+      budget = thinking_enabled ? budget_for(level, options.thinking_budgets) : nil
       effort = thinking_enabled ? effort_for(model, level) : nil
       max_tokens = options.max_tokens
       if thinking_enabled && max_tokens && budget
@@ -31,15 +31,10 @@ module LLM::AI
       ResolvedOptions.new(max_tokens, options.temperature, thinking_enabled, budget, effort, merged_sampling(model, level, options))
     end
 
-    private def self.budget_for(level : String?) : Int32
-      case level
-      when nil
-        1024
-      when "xhigh", "max"
-        16384
-      else
-        BUDGETS[level]? || 1024
-      end
+    private def self.budget_for(level : String?, custom : Hash(String, Int32)?) : Int32
+      return 1024 unless level
+      key = level == "xhigh" || level == "max" ? "high" : level
+      custom.try(&.[key]?) || BUDGETS[key]? || 1024
     end
 
     private def self.effort_for(model : Model, level : String?) : String?

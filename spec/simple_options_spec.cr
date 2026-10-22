@@ -22,6 +22,13 @@ describe LLM::AI::SimpleOptions do
     LLM::AI::SimpleOptions.resolve(model(2000, reasoning: false), LLM::AI::StreamOptions.new).thinking_enabled.should be_false
   end
 
+  it "uses custom thinking budgets and clamps xhigh and max to high" do
+    budgets = {"low" => 300, "high" => 5000}
+    LLM::AI::SimpleOptions.resolve(model(20000), LLM::AI::StreamOptions.new(thinking_level: "low", thinking_budgets: budgets)).thinking_budget_tokens.should eq 300
+    LLM::AI::SimpleOptions.resolve(model(20000), LLM::AI::StreamOptions.new(thinking_level: "xhigh", thinking_budgets: budgets)).thinking_budget_tokens.should eq 5000
+    LLM::AI::SimpleOptions.resolve(model(20000), LLM::AI::StreamOptions.new(thinking_level: "medium", thinking_budgets: budgets)).thinking_budget_tokens.should eq 8192
+  end
+
   it "expands max_tokens for the thinking budget" do
     resolved = LLM::AI::SimpleOptions.resolve(model(20000), LLM::AI::StreamOptions.new(max_tokens: 2000, thinking_level: "high"))
     resolved.max_tokens.should eq 18384

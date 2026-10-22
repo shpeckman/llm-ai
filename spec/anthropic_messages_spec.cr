@@ -379,6 +379,45 @@ describe LLM::AI::Api::AnthropicMessages do
     end
   end
 
+  it "passes each parsed event to on_provider_event" do
+    body = anthropic_sse([message_start, end_turn_delta, message_stop])
+    api = MockApi.new.serve(body).start
+    begin
+      model = anthropic_model("http://127.0.0.1:#{api.port}")
+      seen = [] of String
+      hooks = LLM::AI::StreamHooks.new(on_provider_event: ->(data : JSON::Any, _target : LLM::AI::Model) { seen << data["type"].as_s; nil })
+      LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new(hooks: hooks), api_key_auth, nil).result
+      seen.should eq ["message_start", "message_delta", "message_stop"]
+    ensure
+      api.close
+    end
+  end
+
+  it "sends the client identity for API keys but not for OAuth" do
+    body = anthropic_sse([message_start, end_turn_delta, message_stop])
+    api = MockApi.new.serve(body).start
+    begin
+      model = anthropic_model("http://127.0.0.1:#{api.port}")
+      options = LLM::AI::StreamOptions.new(identity: LLM::AI::ClientIdentity.new(user_agent: "acme/1"))
+      LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, options, api_key_auth, nil).result
+      api.last_headers.not_nil!.get("User-Agent").should eq ["acme/1"]
+      LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, options, oauth_auth, nil).result
+      api.last_headers.not_nil!.get("User-Agent").should eq ["claude-cli/2.1.280"]
+    ensure
+      api.close
+    end
+  end
+
+  it "declares inline tools that only the transcript adds" do
+    compat = LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_changes: true)
+    model = anthropic_model_with_compat(compat)
+    update = LLM::AI::SystemMessage.new("", Time.utc, tools_added: [LLM::AI::Tool.new("calc", "calculate", JSON.parse("{\"type\":\"object\"}"))])
+    context = LLM::AI::Context.new([LLM::AI::UserMessage.new("hi", Time.utc), update] of LLM::AI::Message)
+    payload = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(model, context, LLM::AI::StreamOptions.new, false))
+    payload["tools"].as_a.map(&.["name"]).should eq ["__pi_deferred_placeholder__"]
+    payload["messages"][1]["content"][0]["type"].should eq "tool_addition"
+  end
+
   it "sends x-api-key for non-OAuth auth" do
     body = anthropic_sse([message_start, end_turn_delta, message_stop])
     api = MockApi.new.serve(body).start

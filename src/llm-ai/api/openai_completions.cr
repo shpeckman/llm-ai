@@ -123,9 +123,9 @@ module LLM::AI::Api::OpenAICompletions
       Http.request(
         "#{model.base_url}/chat/completions",
         "POST",
-        request_headers(options, auth),
+        request_headers(model, options, auth),
         build_payload(model, context, options),
-        http_options(options),
+        Http::Options.for(options),
         abort,
       ) do |response|
         options.hooks.try(&.on_response).try &.call(response.status_code, response.headers)
@@ -133,7 +133,9 @@ module LLM::AI::Api::OpenAICompletions
         while event = reader.next
           break if abort.try(&.aborted?)
           break if event.data == "[DONE]"
-          handle_chunk(JSON.parse(event.data), state)
+          chunk = JSON.parse(event.data)
+          options.hooks.try(&.on_provider_event).try &.call(chunk, model)
+          handle_chunk(chunk, state)
           Fiber.yield
         end
       end
@@ -447,19 +449,13 @@ module LLM::AI::Api::OpenAICompletions
     end
   end
 
-  private def self.request_headers(options : StreamOptions, auth : Auth::AuthResult) : Hash(String, String)
-    headers = {"Content-Type" => "application/json"} of String => String
+  private def self.request_headers(model : Model, options : StreamOptions, auth : Auth::AuthResult) : Hash(String, String)
+    headers = Identity.headers(model, options.identity)
+    headers["Content-Type"] = "application/json"
     headers["Authorization"] = "Bearer #{auth.auth.api_key}" if auth.auth.api_key
     auth.auth.headers.try &.each { |key, value| headers[key] = value }
     options.headers.try &.each { |key, value| headers[key] = value }
     headers
-  end
-
-  private def self.http_options(options : StreamOptions) : Http::Options
-    Http::Options.new(
-      read_timeout: options.timeout_ms ? options.timeout_ms.not_nil!.milliseconds : 10.minutes,
-      max_retries: options.max_retries,
-    )
   end
 
   private def self.payload(json : JSON::Builder, model : Model, context : Context, options : StreamOptions, resolved : ResolvedOptions) : Nil
@@ -580,7 +576,7 @@ module LLM::AI::Api::OpenAICompletions
         end
       end
     end
-    text = index == 0 ? system_text(message) : system_update_text(message)
+    text = index == 0 ? Transcript.system_text(message) : Transcript.system_update_text(message)
     return if text.empty?
     json.object do
       json.field "role", "system"
@@ -775,31 +771,5 @@ module LLM::AI::Api::OpenAICompletions
       else                        false
       end
     end
-  end
-
-  private def self.system_text(message : SystemMessage) : String
-    parts = [content_text(message.content)]
-    message.sections.try &.each_value do |value|
-      parts << value unless value.nil?
-    end
-    parts.reject(&.empty?).join("\n\n")
-  end
-
-  private def self.system_update_text(message : SystemMessage) : String
-    parts = [] of String
-    text = content_text(message.content)
-    parts << text unless text.empty?
-    message.sections.try &.each do |name, value|
-      parts << (value ? "Updated system prompt section \"#{name}\":\n\n#{value}" : "Removed system prompt section \"#{name}\".")
-    end
-    parts.join("\n\n")
-  end
-
-  private def self.content_text(content : String) : String
-    content
-  end
-
-  private def self.content_text(content : Array(TextContent)) : String
-    content.map(&.text).join("\n")
   end
 end

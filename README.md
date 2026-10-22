@@ -88,7 +88,7 @@ end
 
 Model metadata (context window, max tokens, pricing, and per-model
 compatibility flags) is data-driven and loaded from
-`src/llm/ai/data/*.json`.
+`src/llm-ai/data/*.json`.
 
 ## Authentication
 

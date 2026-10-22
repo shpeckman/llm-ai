@@ -1,4 +1,4 @@
-# src/llm/ai/providers/faux.cr
+# src/llm-ai/providers/faux.cr
 module LLM::AI::FauxProvider
   def self.provider : Provider
     Provider.new(

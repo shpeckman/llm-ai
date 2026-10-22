@@ -1,4 +1,4 @@
-# src/llm/ai/auth/credential_store.cr
+# src/llm-ai/auth/credential_store.cr
 require "json"
 
 module LLM::AI

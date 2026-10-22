@@ -1,4 +1,4 @@
-# src/llm/ai/auth/kimi_oauth.cr
+# src/llm-ai/auth/kimi_oauth.cr
 require "uri"
 require "../http"
 

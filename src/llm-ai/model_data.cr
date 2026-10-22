@@ -1,4 +1,4 @@
-# src/llm/ai/model_data.cr
+# src/llm-ai/model_data.cr
 module LLM::AI::ModelData
   class Error < Exception
   end

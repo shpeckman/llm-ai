@@ -1,4 +1,4 @@
-# src/llm/ai/http.cr
+# src/llm-ai/http.cr
 require "http/client"
 
 module LLM::AI::Http

@@ -1,4 +1,4 @@
-# src/llm/ai/pricing.cr
+# src/llm-ai/pricing.cr
 module LLM::AI::Pricing
   def self.calculate(model : Model, usage : Usage) : UsageCost
     tier = tier_for(model.cost, usage.input)

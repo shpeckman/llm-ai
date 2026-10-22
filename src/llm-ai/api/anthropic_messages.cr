@@ -1,4 +1,4 @@
-# src/llm/ai/api/anthropic_messages.cr
+# src/llm-ai/api/anthropic_messages.cr
 require "json"
 
 module LLM::AI::Api::AnthropicMessages

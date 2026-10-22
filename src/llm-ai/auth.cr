@@ -1,4 +1,4 @@
-# src/llm/ai/auth.cr
+# src/llm-ai/auth.cr
 module LLM::AI::Auth
   struct AuthContext
     getter env : String -> String?

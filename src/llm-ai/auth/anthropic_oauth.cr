@@ -1,4 +1,4 @@
-# src/llm/ai/auth/anthropic_oauth.cr
+# src/llm-ai/auth/anthropic_oauth.cr
 require "uri"
 require "../http"
 

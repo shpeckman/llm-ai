@@ -1,4 +1,4 @@
-# src/llm/ai/models.cr
+# src/llm-ai/models.cr
 module LLM::AI
   class ModelsError < Exception
     getter kind : String

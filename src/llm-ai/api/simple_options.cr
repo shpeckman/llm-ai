@@ -1,4 +1,4 @@
-# src/llm/ai/api/simple_options.cr
+# src/llm-ai/api/simple_options.cr
 module LLM::AI
   struct ResolvedOptions
     getter max_tokens : Int32?

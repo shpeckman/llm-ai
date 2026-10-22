@@ -1,4 +1,4 @@
-# src/llm/ai/sse.cr
+# src/llm-ai/sse.cr
 module LLM::AI::SSE
   struct Event
     getter name : String?

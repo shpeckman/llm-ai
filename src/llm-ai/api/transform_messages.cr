@@ -1,4 +1,4 @@
-# src/llm/ai/api/transform_messages.cr
+# src/llm-ai/api/transform_messages.cr
 module LLM::AI::Transform
   def self.normalize(context : Context, target : Model) : Context
     messages = [] of Message

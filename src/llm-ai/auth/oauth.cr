@@ -1,4 +1,4 @@
-# src/llm/ai/auth/oauth.cr
+# src/llm-ai/auth/oauth.cr
 require "base64"
 require "digest/sha256"
 require "http/server"

@@ -1,4 +1,4 @@
-# src/llm/ai/providers/moonshot.cr
+# src/llm-ai/providers/moonshot.cr
 module LLM::AI::MoonshotProvider
   def self.provider : Provider
     Provider.new(

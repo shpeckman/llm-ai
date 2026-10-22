@@ -1,4 +1,4 @@
-# src/llm/ai/api/jsonify.cr
+# src/llm-ai/api/jsonify.cr
 require "json"
 
 module LLM::AI::Jsonify

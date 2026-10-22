@@ -1,4 +1,4 @@
-# src/llm/ai/api/openai_completions.cr
+# src/llm-ai/api/openai_completions.cr
 require "json"
 
 module LLM::AI::Api::OpenAICompletions

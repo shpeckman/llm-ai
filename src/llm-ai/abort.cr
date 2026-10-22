@@ -1,4 +1,4 @@
-# src/llm/ai/abort.cr
+# src/llm-ai/abort.cr
 module LLM::AI
   class AbortHandle
     @channel : Channel(Nil)

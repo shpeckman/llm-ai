@@ -1,4 +1,4 @@
-# src/llm/ai/partial_json.cr
+# src/llm-ai/partial_json.cr
 require "json"
 
 module LLM::AI::PartialJson

@@ -1,4 +1,4 @@
-# src/llm/ai/types.cr
+# src/llm-ai/types.cr
 require "http"
 require "json"
 

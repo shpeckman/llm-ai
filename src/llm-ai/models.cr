@@ -112,9 +112,11 @@ module LLM::AI
 
     def stream(model : Model, context : Context, options : StreamOptions? = nil, abort : AbortHandle? = nil) : MessageStream
       provider = provider(model.provider)
-      auth_result = Auth.resolve(model.provider, provider.auth, @store, @ctx)
+      options ||= StreamOptions.new
+      overrides = options.api_key.presence.try { |key| Auth::AuthOverrides.new(api_key: key) }
+      auth_result = Auth.resolve(model.provider, provider.auth, @store, @ctx, overrides)
       normalized = Transform.normalize(context, model)
-      provider.stream.call(model, normalized, options || StreamOptions.new, auth_result, abort)
+      provider.stream.call(model, normalized, options, auth_result, abort)
     end
 
     def chat(model : Model, context : Context, options : StreamOptions? = nil, abort : AbortHandle? = nil) : AssistantMessage

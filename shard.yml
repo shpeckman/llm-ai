@@ -10,6 +10,10 @@ description: |
   Anthropic, Kimi, and Moonshot, with normalized messages, tool calling,
   thinking, usage and cost, and API-key and OAuth authentication.
 
+dependencies:
+  typebox:
+    github: shpeckman/typebox
+
 crystal: ">= 1.21.0"
 
 license: MIT

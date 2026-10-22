@@ -241,6 +241,16 @@ module LLM::AI
         timestamp == other.timestamp
     end
 
+    def copy_with(
+      content : String | Array(TextContent) = @content,
+      timestamp : Time = @timestamp,
+      sections : Hash(String, String?)? = @sections,
+      tools_added : Array(Tool)? = @tools_added,
+      tools_removed : Array(ToolReference)? = @tools_removed,
+    ) : SystemMessage
+      SystemMessage.new(content, timestamp, sections, tools_added, tools_removed)
+    end
+
     protected def on_to_json(json : JSON::Builder)
       json.field "role", "system"
     end
@@ -319,6 +329,32 @@ module LLM::AI
         duration_ms == other.duration_ms && reasoning_details == other.reasoning_details
     end
 
+    def copy_with(
+      content : Array(ContentBlock) = @content,
+      provider : String = @provider,
+      model : String = @model,
+      timestamp : Time = @timestamp,
+      api : String? = @api,
+      response_model : String? = @response_model,
+      response_id : String? = @response_id,
+      provider_thinking_level : String? = @provider_thinking_level,
+      thinking_level : String? = @thinking_level,
+      usage : Usage? = @usage,
+      stop_reason : StopReason = @stop_reason,
+      deferred : Bool = @deferred,
+      error_message : String? = @error_message,
+      raw_stop_reason : String? = @raw_stop_reason,
+      end_turn : Bool = @end_turn,
+      duration_ms : Int64? = @duration_ms,
+      reasoning_details : JSON::Any? = @reasoning_details,
+    ) : AssistantMessage
+      AssistantMessage.new(
+        content, provider, model, timestamp, api, response_model, response_id,
+        provider_thinking_level, thinking_level, usage, stop_reason, deferred,
+        error_message, raw_stop_reason, end_turn, duration_ms, reasoning_details,
+      )
+    end
+
     protected def on_to_json(json : JSON::Builder)
       json.field "role", "assistant"
     end
@@ -334,6 +370,8 @@ module LLM::AI
     @[JSON::Field(converter: LLM::AI::EpochMillis)]
     getter timestamp : Time
     getter duration_ms : Int64?
+    getter details : JSON::Any?
+    getter usage : Usage?
 
     def initialize(
       @tool_call_id : String,
@@ -342,13 +380,29 @@ module LLM::AI
       @timestamp : Time,
       @is_error : Bool = false,
       @duration_ms : Int64? = nil,
+      @details : JSON::Any? = nil,
+      @usage : Usage? = nil,
     )
     end
 
     def ==(other : ToolResultMessage) : Bool
       tool_call_id == other.tool_call_id && tool_name == other.tool_name &&
         content == other.content && is_error == other.is_error &&
-        timestamp == other.timestamp && duration_ms == other.duration_ms
+        timestamp == other.timestamp && duration_ms == other.duration_ms &&
+        details == other.details && usage == other.usage
+    end
+
+    def copy_with(
+      tool_call_id : String = @tool_call_id,
+      tool_name : String = @tool_name,
+      content : Array(ContentBlock) = @content,
+      timestamp : Time = @timestamp,
+      is_error : Bool = @is_error,
+      duration_ms : Int64? = @duration_ms,
+      details : JSON::Any? = @details,
+      usage : Usage? = @usage,
+    ) : ToolResultMessage
+      ToolResultMessage.new(tool_call_id, tool_name, content, timestamp, is_error, duration_ms, details, usage)
     end
 
     protected def on_to_json(json : JSON::Builder)
@@ -758,11 +812,14 @@ module LLM::AI
     getter on_response : Proc(Int32, HTTP::Headers, Nil)?
     @[JSON::Field(ignore: true)]
     getter on_event : Proc(StreamEvent, Nil)?
+    @[JSON::Field(ignore: true)]
+    getter on_provider_event : Proc(JSON::Any, Model, Nil)?
 
     def initialize(
       @on_payload : Proc(JSON::Any, Model, JSON::Any)? = nil,
       @on_response : Proc(Int32, HTTP::Headers, Nil)? = nil,
       @on_event : Proc(StreamEvent, Nil)? = nil,
+      @on_provider_event : Proc(JSON::Any, Model, Nil)? = nil,
     )
     end
   end
@@ -786,6 +843,12 @@ module LLM::AI
     @[JSON::Field(ignore: true)]
     getter hooks : StreamHooks?
     getter sampling_params : Hash(String, JSON::Any)?
+    @[JSON::Field(ignore: true)]
+    getter api_key : String?
+    getter session_id : String?
+    getter thinking_budgets : Hash(String, Int32)?
+    getter max_retry_delay_ms : Int32?
+    getter identity : ClientIdentity?
 
     def initialize(
       @max_tokens : Int32? = nil,
@@ -802,7 +865,40 @@ module LLM::AI
       @user_id : String? = nil,
       @hooks : StreamHooks? = nil,
       @sampling_params : Hash(String, JSON::Any)? = nil,
+      @api_key : String? = nil,
+      @session_id : String? = nil,
+      @thinking_budgets : Hash(String, Int32)? = nil,
+      @max_retry_delay_ms : Int32? = nil,
+      @identity : ClientIdentity? = nil,
     )
+    end
+
+    def copy_with(
+      max_tokens : Int32? = @max_tokens,
+      temperature : Float64? = @temperature,
+      thinking_level : String? = @thinking_level,
+      thinking_enabled : Bool? = @thinking_enabled,
+      effort : String? = @effort,
+      thinking_display : String? = @thinking_display,
+      tool_choice : String? = @tool_choice,
+      headers : Hash(String, String)? = @headers,
+      cache_retention : Symbol? = @cache_retention,
+      max_retries : Int32 = @max_retries,
+      timeout_ms : Int32? = @timeout_ms,
+      user_id : String? = @user_id,
+      hooks : StreamHooks? = @hooks,
+      sampling_params : Hash(String, JSON::Any)? = @sampling_params,
+      api_key : String? = @api_key,
+      session_id : String? = @session_id,
+      thinking_budgets : Hash(String, Int32)? = @thinking_budgets,
+      max_retry_delay_ms : Int32? = @max_retry_delay_ms,
+      identity : ClientIdentity? = @identity,
+    ) : StreamOptions
+      StreamOptions.new(
+        max_tokens, temperature, thinking_level, thinking_enabled, effort, thinking_display,
+        tool_choice, headers, cache_retention, max_retries, timeout_ms, user_id, hooks,
+        sampling_params, api_key, session_id, thinking_budgets, max_retry_delay_ms, identity,
+      )
     end
   end
 end

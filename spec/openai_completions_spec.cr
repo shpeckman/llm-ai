@@ -105,6 +105,22 @@ describe LLM::AI::Api::OpenAICompletions do
     end
   end
 
+  it "passes each parsed chunk to on_provider_event" do
+    body = sse_body([content_chunk("hi"), final_chunk("stop", usage_json(1, 1)), "[DONE]"])
+    api = MockApi.new.serve(body).start
+    begin
+      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      seen = [] of JSON::Any
+      hooks = LLM::AI::StreamHooks.new(on_provider_event: ->(data : JSON::Any, target : LLM::AI::Model) { seen << data; target.id.should eq "deepseek-chat"; nil })
+      LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new(hooks: hooks), auth_result, nil).result
+      seen.size.should eq 2
+      seen[0]["choices"][0]["delta"]["content"].should eq "hi"
+      seen[1]["choices"][0]["finish_reason"].should eq "stop"
+    ensure
+      api.close
+    end
+  end
+
   it "accumulates a tool call split across deltas" do
     first = {"choices" => [{"index" => 0, "delta" => {"tool_calls" => [
       {"index" => 0, "id" => "t1", "type" => "function", "function" => {"name" => "get_weather", "arguments" => "{\"city\":\"pari"}},

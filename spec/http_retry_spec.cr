@@ -159,6 +159,29 @@ describe LLM::AI::Http do
     end
   end
 
+  it "applies the maximum retry delay from stream options" do
+    api = ScriptedApi.new([
+      {429, {"retry-after" => "2"}, "busy"},
+      {200, {} of String => String, "ok"},
+    ]).start
+    begin
+      capped = LLM::AI::Http::Options.for(LLM::AI::StreamOptions.new(max_retries: 1, max_retry_delay_ms: 1500))
+      capped.max_retry_delay.should eq 1500.milliseconds
+      error = expect_raises(LLM::AI::Http::Error) do
+        LLM::AI::Http.request("http://127.0.0.1:#{api.port}/v1/test", "POST", nil, "{}", capped) { }
+      end
+      (error.message || "").should contain "exceeds maximum retry delay of 1500ms"
+      uncapped = LLM::AI::Http::Options.for(LLM::AI::StreamOptions.new(max_retries: 1, max_retry_delay_ms: 0))
+      uncapped.max_retry_delay.should be_nil
+      LLM::AI::Http::Options.for(LLM::AI::StreamOptions.new).max_retry_delay.should eq 60.seconds
+      captured = ""
+      LLM::AI::Http.request("http://127.0.0.1:#{api.port}/v1/test", "POST", nil, "{}", uncapped) { |response| captured = response.body_io.gets_to_end }
+      captured.should eq "ok"
+    ensure
+      api.close
+    end
+  end
+
   it "honors fractional retry-after seconds" do
     api = ScriptedApi.new([
       {429, {"retry-after" => "1.5"}, "busy"},

@@ -132,6 +132,27 @@ describe LLM::AI::Models do
     result.duration_ms.should_not be_nil
   end
 
+  it "uses the api_key stream option as an auth override" do
+    with_temp_store do |store, _, _|
+      models = LLM::AI::Models.new(store, LLM::AI::Auth::AuthContext.new(->(_name : String) { "ambient".as(String?) }, ->(_path : String) { false }))
+      seen = [] of String?
+      model = LLM::AI::Model.new("m", "m", "capture", "http://x", LLM::AI::ApiKind::OpenaiCompletions,
+        [LLM::AI::InputKind::Text], 1000, 1000, false, LLM::AI::ModelCost.new(0.0, 0.0, 0.0, 0.0))
+      models.register(LLM::AI::Provider.new("capture", "Capture", "http://x", {} of String => String,
+        LLM::AI::Auth::ProviderAuth.new(LLM::AI::Auth::ApiKeyAuth.new("Key", ["CAPTURE_KEY"])), [model],
+        ->(_model : LLM::AI::Model, _context : LLM::AI::Context, _options : LLM::AI::StreamOptions, auth : LLM::AI::Auth::AuthResult, abort : LLM::AI::AbortHandle?) do
+          seen << auth.auth.api_key
+          stream = LLM::AI::MessageStream.new(abort)
+          spawn { stream.finish(LLM::AI::StreamEvent::Done.new(LLM::AI::StopReason::Stop, LLM::AI::AssistantMessage.new([] of LLM::AI::ContentBlock, "capture", "m", Time.utc, stop_reason: LLM::AI::StopReason::Stop))) }
+          stream
+        end))
+      models.chat(model, faux_context, LLM::AI::StreamOptions.new(api_key: "explicit"))
+      models.chat(model, faux_context, LLM::AI::StreamOptions.new(api_key: ""))
+      models.chat(model, faux_context)
+      seen.should eq ["explicit", "ambient", "ambient"]
+    end
+  end
+
   it "surfaces error events as ModelsError from result" do
     models = LLM::AI::Models.build
     stream = models.stream(models.model("faux", "faux-error"), faux_context)

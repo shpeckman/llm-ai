@@ -34,20 +34,12 @@ module LLM::AI::Transform
           pending_calls = calls
           answered_ids = Set(String).new
         end
-        messages << AssistantMessage.new(
-          blocks, message.provider, message.model, message.timestamp, message.api,
-          message.response_model, message.response_id, message.provider_thinking_level,
-          message.thinking_level, message.usage, message.stop_reason, message.deferred,
-          message.error_message, message.raw_stop_reason, message.end_turn, message.duration_ms,
-        )
+        messages << message.copy_with(content: blocks)
       when ToolResultMessage
         call_id = id_map.fetch(message.tool_call_id, message.tool_call_id)
         answered_ids << call_id
         blocks = message.content.compact_map { |block| convert_block(block, target, false, id_map) }
-        messages << ToolResultMessage.new(
-          call_id, message.tool_name, blocks, message.timestamp,
-          message.is_error, message.duration_ms,
-        )
+        messages << message.copy_with(tool_call_id: call_id, content: blocks)
       when UserMessage
         close_pending.call
         raw_content = message.content
@@ -71,7 +63,25 @@ module LLM::AI::Transform
 
     close_pending.call
 
-    Context.new(messages, context.system_prompt, context.tools)
+    resolve_tools(messages, context, target)
+  end
+
+  private def self.resolve_tools(messages : Array(Message), context : Context, target : Model) : Context
+    system_messages = [] of SystemMessage
+    system_messages << SystemMessage.new("", Transcript::EPOCH, tools_added: context.tools) unless context.tools.empty?
+    virtual = system_messages.size
+    leading = virtual + (Transcript.initial_system_message(messages) ? 1 : 0)
+    messages.each { |message| system_messages << message if message.is_a?(SystemMessage) }
+    resolved = Transcript.resolve_tools(system_messages, leading, Transcript.tool_support(target))
+    seen = virtual
+    rewritten = messages.map do |message|
+      next message unless message.is_a?(SystemMessage)
+      folded = seen < resolved.folded_system_messages
+      seen += 1
+      next message unless folded && (message.tools_added || message.tools_removed)
+      message.copy_with(tools_added: nil, tools_removed: nil).as(Message)
+    end
+    Context.new(rewritten, context.system_prompt, resolved.request_tools)
   end
 
   private def self.convert_block(block : ContentBlock, target : Model, same_model : Bool, id_map : Hash(String, String)) : ContentBlock?

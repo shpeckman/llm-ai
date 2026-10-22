@@ -97,19 +97,21 @@ module LLM::AI::Api::AnthropicMessages
 
   def self.handle_event(event : SSE::Event, state : StreamState) : Nil
     return if event.data.empty?
+    data = JSON.parse(event.data)
+    state.options.hooks.try(&.on_provider_event).try &.call(data, state.model)
     case event.name
     when "message_start"
-      handle_message_start(JSON.parse(event.data), state)
+      handle_message_start(data, state)
     when "message_delta"
-      handle_message_delta(JSON.parse(event.data), state)
+      handle_message_delta(data, state)
     when "message_stop"
       state.saw_message_stop = true
     when "content_block_start"
-      handle_block_start(JSON.parse(event.data), state)
+      handle_block_start(data, state)
     when "content_block_delta"
-      handle_block_delta(JSON.parse(event.data), state)
+      handle_block_delta(data, state)
     when "content_block_stop"
-      handle_block_stop(JSON.parse(event.data), state)
+      handle_block_stop(data, state)
     end
   end
 
@@ -124,7 +126,7 @@ module LLM::AI::Api::AnthropicMessages
         "POST",
         request_headers(options, auth, model, context, oauth),
         build_payload(model, context, options, oauth),
-        http_options(options),
+        Http::Options.for(options),
         abort,
       ) do |response|
         options.hooks.try(&.on_response).try &.call(response.status_code, response.headers)
@@ -392,11 +394,10 @@ module LLM::AI::Api::AnthropicMessages
 
   private def self.request_headers(options : StreamOptions, auth : Auth::AuthResult, model : Model, context : Context, oauth : Bool) : Hash(String, String)
     resolved = SimpleOptions.resolve(model, options)
-    headers = {
-      "Content-Type"      => "application/json",
-      "Accept"            => "application/json",
-      "anthropic-version" => "2023-06-01",
-    } of String => String
+    headers = oauth ? {} of String => String : Identity.headers(model, options.identity)
+    headers["Content-Type"] = "application/json"
+    headers["Accept"] = "application/json"
+    headers["anthropic-version"] = "2023-06-01"
     auth.auth.headers.try &.each { |key, value| headers[key] = value }
     if oauth
       if key = auth.auth.api_key
@@ -431,7 +432,11 @@ module LLM::AI::Api::AnthropicMessages
   end
 
   private def self.native_tool_changes(model : Model, context : Context) : Bool
-    model.compat.supports_mid_convo_system_messages && model.compat.supports_mid_convo_tool_changes && !context.tools.empty?
+    Transcript.tool_support(model).changes? && (!context.tools.empty? || context.messages.any? { |message| tool_change?(message) })
+  end
+
+  private def self.tool_change?(message : Message) : Bool
+    message.is_a?(SystemMessage) && !(message.tools_added.nil? && message.tools_removed.nil?)
   end
 
   private def self.oauth_mode(auth : Auth::AuthResult) : Bool
@@ -451,13 +456,6 @@ module LLM::AI::Api::AnthropicMessages
       end
     end
     raise ModelsError.new("auth", "No API key for provider: anthropic")
-  end
-
-  private def self.http_options(options : StreamOptions) : Http::Options
-    Http::Options.new(
-      read_timeout: options.timeout_ms ? options.timeout_ms.not_nil!.milliseconds : 10.minutes,
-      max_retries: options.max_retries,
-    )
   end
 
   private def self.resolve_cache_retention(options : StreamOptions) : Symbol
@@ -527,7 +525,7 @@ module LLM::AI::Api::AnthropicMessages
     end
     if first = context.messages.first?
       if first.is_a?(SystemMessage)
-        text = system_text(first)
+        text = Transcript.system_text(first)
         blocks << text unless text.empty?
       end
     end
@@ -783,7 +781,7 @@ module LLM::AI::Api::AnthropicMessages
   end
 
   private def self.write_tools(json : JSON::Builder, model : Model, context : Context, retention : Symbol, oauth : Bool) : Nil
-    return if context.tools.empty?
+    return if context.tools.empty? && !native_tool_changes(model, context)
     json.field "tools" do
       json.array do
         context.tools.each_with_index do |tool, index|
@@ -892,26 +890,8 @@ module LLM::AI::Api::AnthropicMessages
     name
   end
 
-  private def self.system_text(message : SystemMessage) : String
-    parts = [content_text(message.content)]
-    message.sections.try &.each_value do |value|
-      parts << value unless value.nil?
-    end
-    parts.reject(&.empty?).join("\n\n")
-  end
-
-  private def self.system_update_text(message : SystemMessage) : String
-    parts = [] of String
-    text = content_text(message.content)
-    parts << text unless text.empty?
-    message.sections.try &.each do |name, value|
-      parts << (value ? "Updated system prompt section \"#{name}\":\n\n#{value}" : "Removed system prompt section \"#{name}\".")
-    end
-    parts.join("\n\n")
-  end
-
   private def self.system_update_param(message : SystemMessage, model : Model, retention : Symbol, oauth : Bool, native : Bool) : JSON::Any?
-    text = system_update_text(message)
+    text = Transcript.system_update_text(message)
     return if text.empty? && !native
     return object_param({"role" => JSON::Any.new("system"), "content" => JSON::Any.new(text)}) unless native
     blocks = [] of JSON::Any
@@ -946,13 +926,5 @@ module LLM::AI::Api::AnthropicMessages
         "definition" => definition,
       }),
     })
-  end
-
-  private def self.content_text(content : String) : String
-    content
-  end
-
-  private def self.content_text(content : Array(TextContent)) : String
-    content.map(&.text).join("\n")
   end
 end

@@ -1,0 +1,2511 @@
+From 90ba902b4d54835d006b7b0b2164ab9b502e15d5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 22 Oct 2026 10:00:08 +0000
+Subject: [PATCH] Add agent support: transcripts, validation, identity,
+ scripted faux
+
+- Transcript: system-message replay, tool state changes, and tool support
+  levels; Transform.normalize resolves transcript tool declarations per model
+- Validation: tool-argument coercion and checks through the typebox shard
+- ClientIdentity: User-Agent and provider attribution headers
+- StreamOptions: api_key, session_id, thinking_budgets, max_retry_delay_ms,
+  identity; StreamHooks#on_provider_event
+- ToolResultMessage: details and usage; copy_with on messages and options
+- AbortHandle: reason, listeners, throw_if_aborted
+- FauxProvider.scripted: queued responses for tests
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Fta5FMPuY73EyQjF5scEFB
+---
+ AGENTS.md                             |  34 ++-
+ README.md                             | 139 ++++++++++-
+ shard.yml                             |   4 +
+ spec/abort_spec.cr                    |  47 ++++
+ spec/anthropic_messages_spec.cr       |  39 +++
+ spec/http_retry_spec.cr               |  23 ++
+ spec/identity_spec.cr                 |  73 ++++++
+ spec/openai_completions_spec.cr       |  16 ++
+ spec/registry_spec.cr                 |  21 ++
+ spec/scripted_faux_spec.cr            |  90 +++++++
+ spec/simple_options_spec.cr           |   7 +
+ spec/transcript_spec.cr               | 114 +++++++++
+ spec/transform_messages_spec.cr       |  70 ++++++
+ spec/validation_spec.cr               |  66 ++++++
+ src/llm-ai.cr                         |   5 +
+ src/llm-ai/abort.cr                   |  49 +++-
+ src/llm-ai/api/anthropic_messages.cr  |  68 ++----
+ src/llm-ai/api/openai_completions.cr  |  48 +---
+ src/llm-ai/api/simple_options.cr      |  15 +-
+ src/llm-ai/api/transform_messages.cr  |  32 ++-
+ src/llm-ai/http.cr                    |  36 ++-
+ src/llm-ai/identity.cr                | 108 +++++++++
+ src/llm-ai/models.cr                  |   6 +-
+ src/llm-ai/providers/scripted_faux.cr | 330 ++++++++++++++++++++++++++
+ src/llm-ai/transcript.cr              | 131 ++++++++++
+ src/llm-ai/types.cr                   |  98 +++++++-
+ src/llm-ai/validation.cr              | 218 +++++++++++++++++
+ 27 files changed, 1751 insertions(+), 136 deletions(-)
+ create mode 100644 spec/identity_spec.cr
+ create mode 100644 spec/scripted_faux_spec.cr
+ create mode 100644 spec/transcript_spec.cr
+ create mode 100644 spec/validation_spec.cr
+ create mode 100644 src/llm-ai/identity.cr
+ create mode 100644 src/llm-ai/providers/scripted_faux.cr
+ create mode 100644 src/llm-ai/transcript.cr
+ create mode 100644 src/llm-ai/validation.cr
+
+diff --git a/AGENTS.md b/AGENTS.md
+index 6537829..a4c809b 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -7,6 +7,9 @@ It exposes one `LLM::AI` API over multiple providers (DeepSeek, Anthropic,
+ Kimi, Moonshot, and an in-memory `faux` provider), normalizing messages,
+ tools, streaming events, usage, and cost behind a single interface.
+ 
++It depends on the `typebox` shard (`github: shpeckman/typebox`), used only by
++`src/llm-ai/validation.cr`. `llm-agent` builds on it.
++
+ This is a **library, not an application**: `shard.yml` defines no `targets`,
+ and there is no `bin/`. The public contract is the `LLM::AI` module.
+ 
+@@ -18,14 +21,20 @@ All code lives under `src/llm-ai/`, next to the entry point `src/llm-ai.cr`. Cry
+ src/llm-ai.cr                     Entry point: requires the tree, opens LLM::AI
+ src/llm-ai/types.cr               Core types: messages, content blocks, stream
+                                   events, Model, StreamOptions, Usage, enums
++src/llm-ai/identity.cr            ClientIdentity, ClientAttribution, Identity
++                                  (User-Agent and attribution headers)
++src/llm-ai/transcript.cr          Transcript: system-message replay, tool state
++                                  changes, tool support levels, prompt text
++src/llm-ai/validation.cr          Validation: tool-argument coercion and checks
+ src/llm-ai/models.cr              Models registry: build, lookup, stream/chat
+ src/llm-ai/model_data.cr          Parses src/llm-ai/data/*.json into Model[]
+ src/llm-ai/pricing.cr             Cost calculation from usage + model rates
+ src/llm-ai/http.cr                HTTP request + retry/backoff + abort support
+ src/llm-ai/sse.cr                 Server-sent-events reader
+ src/llm-ai/partial_json.cr        Completes partial JSON for streaming tool args
+-src/llm-ai/abort.cr               AbortHandle for cooperative cancellation
+-src/llm-ai/api/transform_messages.cr  Normalize a Context for a target model
++src/llm-ai/abort.cr               AbortHandle (reason, listeners) and AbortError
++src/llm-ai/api/transform_messages.cr  Normalize a Context for a target model,
++                                  including transcript tool resolution
+ src/llm-ai/api/simple_options.cr      Resolve StreamOptions + thinking levels
+ src/llm-ai/api/jsonify.cr         Serialize JSON::Any into a JSON::Builder
+ src/llm-ai/api/openai_completions.cr  OpenAI Chat Completions wire adapter
+@@ -36,6 +45,8 @@ src/llm-ai/auth/oauth.cr          OAuth primitives (PKCE, callback server, event
+ src/llm-ai/auth/anthropic_oauth.cr    Anthropic OAuth (browser/PKCE) + refresh
+ src/llm-ai/auth/kimi_oauth.cr         Kimi OAuth (device code) + refresh
+ src/llm-ai/providers/*.cr         One Provider definition per provider
++src/llm-ai/providers/scripted_faux.cr  FauxProvider.scripted: queued responses
++                                  for tests
+ src/llm-ai/data/*.json            Model metadata: pricing, windows, compat flags
+ spec/                             Crystal specs (one file per unit)
+ .ameba.yml                        Ameba linter config (disabled rules)
+@@ -86,6 +97,25 @@ rename `Bool` getters to `?` and break the public API), `Lint/NotNil`
+ - `Models#stream` always calls `Transform.normalize(context, model)` before
+   handing the context to the provider, so adapters can assume a normalized
+   message list.
++- Transcripts own the prompt and tools: the leading `SystemMessage` is the
++  prompt, later ones carry `sections`, `tools_added`, and `tools_removed`.
++  `Transform.normalize` folds tool declarations for the target model through
++  `Transcript.tool_support` (compat flags) and `Transcript.resolve_tools`, so
++  adapters see `Context#tools` as the top-level list plus in-place changes
++  they can express. Treat `Context#tools` as a declaration before the first
++  message. Prompt text rendering lives in `Transcript.system_text` and
++  `Transcript.system_update_text`; adapters call them rather than keeping
++  their own copies.
++- Request options flow through one place each: `Http::Options.for` (timeouts,
++  retries, the retry-delay cap), `Identity.headers` (lowest-priority headers in
++  both adapters), and the `api_key` override in `Models#stream`.
++- `AssistantMessage`, `ToolResultMessage`, `SystemMessage`, and
++  `StreamOptions` have `copy_with`; use it instead of listing fields when
++  deriving a value, so a new field changes one constructor.
++- Tool validation mirrors pi-ai's `validateToolArguments` for plain JSON
++  schemas; checks go through `TypeBox::Value`.
++- `VERSION` is read from `shard.yml` at compile time and appears in the
++  default `User-Agent`.
+ - Streaming is event-driven: every stream emits `Start`, then per-block
+   `*Start`/`*Delta`/`*End` events, then exactly one terminal `Done` or `Error`
+   event. `MessageStream#result` derives the final `AssistantMessage`.
+diff --git a/README.md b/README.md
+index 489a7f1..d54a80a 100644
+--- a/README.md
++++ b/README.md
+@@ -15,17 +15,23 @@ All functionality lives under the `LLM::AI` module.
+ - Streaming via a typed event stream (`StreamEvent`) with a terminal
+   `Done`/`Error` event.
+ - Tool calling with JSON-schema definitions and partial-argument streaming.
++- Transcripts: system messages carry prompt sections and tool declarations,
++  with replay helpers (`Transcript`).
++- Tool-argument validation and coercion against JSON Schema (`Validation`).
+ - Reasoning/thinking levels, effort, and adaptive thinking where supported.
+ - Usage and per-model cost calculation (`Usage` / `UsageCost` / `Pricing`).
+ - Prompt-cache retention control for Anthropic.
+ - API-key and OAuth authentication with an on-disk credential store.
+ - Retry with exponential backoff and `Retry-After` / `x-should-retry` support.
+-- Cooperative cancellation via `AbortHandle`.
++- Cooperative cancellation via `AbortHandle`, with reasons and listeners.
+ - Request/response/event hooks for observability.
++- Client identity: `User-Agent` and provider attribution headers.
++- A scripted faux provider for tests.
+ 
+ ## Requirements
+ 
+ - Crystal `>= 1.21.0`
++- The `typebox` shard (`github: shpeckman/typebox`), installed by `shards install`
+ 
+ ## Installation
+ 
+@@ -147,6 +153,11 @@ context = LLM::AI::Context.new(messages, system_prompt: "...", tools: [tool])
+   `usage`, `stop_reason`, timing, and `end_turn`.
+ - `ToolResultMessage` — a tool's result, keyed by `tool_call_id`.
+ 
++A `ToolResultMessage` also carries `is_error`, `duration_ms`, `details`
++(arbitrary JSON for logs or UI), and `usage` (the tool's own usage, if any).
++`AssistantMessage`, `ToolResultMessage`, and `SystemMessage` have
++`copy_with` for changed copies.
++
+ `UserMessage` and `SystemMessage` require a `Time` timestamp (serialized as
+ epoch milliseconds).
+ 
+@@ -176,6 +187,59 @@ epoch milliseconds).
+ `MessageStream#result` drains the stream and returns the final
+ `AssistantMessage`, raising `ModelsError` if the stream failed.
+ 
++### Transcripts
++
++The leading `SystemMessage` of a message list is the system prompt; later
++system messages patch it. `content` adds instructions, `sections` replaces
++named sections (`nil` removes one), and `tools_added` / `tools_removed`
++change the declared tools. `LLM::AI::Transcript` replays them:
++
++```crystal
++messages = [
++  LLM::AI::Transcript.create_initial_system_message("Be brief.", [weather]).not_nil!,
++  LLM::AI::UserMessage.new("hi", Time.utc),
++  LLM::AI::SystemMessage.new("", Time.utc, {"skills" => "<skills>…</skills>"} of String => String?),
++] of LLM::AI::Message
++
++LLM::AI::Transcript.current_tools(messages)          # => [weather]
++LLM::AI::Transcript.current_system_prompt(messages)  # => "Be brief.\n\n<skills>…</skills>"
++```
++
++| Function | Meaning |
++| --- | --- |
++| `create_initial_system_message(prompt, tools)` | The leading system message for a prompt and tools, or `nil` when both are empty. |
++| `initial_system_message(messages)` | The leading system message, if any. |
++| `current_tools(messages)` | The tools after applying every removal and addition in order. |
++| `current_system_message(messages)` | Every system message replayed into one (content joined, sections patched, current tools). |
++| `current_system_prompt(messages)` | The replayed prompt text. |
++| `tool_state_changes(previous, current)` | `ToolStateChanges` (`tools_added`, `tools_removed`); a changed definition is a removal and an addition. |
++| `system_text(message)`, `system_update_text(message)` | A leading prompt, and a later system message as sent mid-conversation. |
++
++The helpers accept any `Array(Message)`, including lists with custom
++`Message` subclasses; they only read system messages.
++
++`Models#stream` resolves the transcript's tool declarations for the target
++model: models without mid-conversation tool changes get the current tools at
++the top level; Kimi-style models (`supports_mid_convo_tool_additions`) keep
++later additions in place after the last removal; Anthropic-style models
++(`supports_mid_convo_tool_changes`) keep every later change in place.
++`Context#tools` counts as a declaration before the first message.
++
++### Tool validation
++
++```crystal
++args = LLM::AI::Validation.validate_tool_call(tools, tool_call)    # finds the tool by name
++args = LLM::AI::Validation.validate_tool_arguments(tool, tool_call)
++```
++
++Validation works on a copy of the arguments: optional properties that are
++`null` but do not accept `null` are dropped, primitives are coerced to the
++schema's types (`"3"` to `3` for `integer`, `"true"` to `true`, numbers to
++strings, union members tried in order), and the result is checked with
++`TypeBox::Value.check`. A failure raises `ToolValidationError` listing each
++error path and the received arguments; a tool call whose arguments failed to
++parse (`arguments_error`) raises before validation.
++
+ ### `StopReason`
+ 
+ `Stop`, `Length`, `ToolUse`, `Error`, `Aborted`, `Deferred`, or `Pending`.
+@@ -209,6 +273,11 @@ Field                                 | Meaning
+ `max_retries`                         | Retry count for retryable failures.
+ `timeout_ms`                          | Per-request read timeout.
+ `user_id`                             | User metadata (Anthropic).
++`api_key`                             | API key for this request; overrides stored and ambient credentials. Never serialized.
++`session_id`                          | Session identifier for session-aware providers and the faux provider's cache estimate.
++`thinking_budgets`                    | Token budgets per thinking level (`"minimal"`, `"low"`, `"medium"`, `"high"`); `xhigh` and `max` use `high`.
++`max_retry_delay_ms`                  | Longest server-requested retry wait (default 60 000); `0` removes the cap.
++`identity`                            | `ClientIdentity` (below).
+ `sampling_params`                     | Raw per-request parameters merged last.
+ `hooks`                               | `StreamHooks` callbacks (below).
+ 
+@@ -270,6 +339,11 @@ end
+ 
+ ### Cancellation
+ 
++`AbortHandle#abort(reason = AbortError.new(...))` or `abort(message)` aborts
++once; `aborted?`, `reason`, and `throw_if_aborted` read it, and
++`on_abort { |reason| }` registers a listener that runs once at abort and
++returns a remover.
++
+ ```crystal
+ abort = LLM::AI::AbortHandle.new
+ 
+@@ -289,13 +363,64 @@ end
+ ```crystal
+ options = LLM::AI::StreamOptions.new(
+   hooks: LLM::AI::StreamHooks.new(
+-    on_payload:  ->(payload : JSON::Any, model : LLM::AI::Model) { payload },
+-    on_response: ->(status : Int32, headers : HTTP::Headers) { },
+-    on_event:    ->(event : LLM::AI::StreamEvent) { },
++    on_payload:        ->(payload : JSON::Any, model : LLM::AI::Model) { payload },
++    on_response:       ->(status : Int32, headers : HTTP::Headers) { },
++    on_event:          ->(event : LLM::AI::StreamEvent) { },
++    on_provider_event: ->(data : JSON::Any, model : LLM::AI::Model) { },
+   ),
+ )
+ ```
+ 
++`on_provider_event` receives each parsed provider stream chunk before
++normalization.
++
++### Client identity
++
++```crystal
++identity = LLM::AI::ClientIdentity.new(
++  user_agent: :short,
++  attribution: LLM::AI::ClientAttribution.new("my-app", "https://my-app.example", ["cli-agent"]),
++)
++options = LLM::AI::StreamOptions.new(identity: identity)
++```
++
++Requests send a `User-Agent`: by default
++`llm-ai/<version> (<platform>; crystal/<version>; <arch>)`, `llm-ai` with
++`:short`, or any `String` given as `user_agent`; `version` replaces the
++library version. An `attribution` adds headers only for providers that read
++them: OpenRouter (`HTTP-Referer`, `X-OpenRouter-Title`,
++`X-OpenRouter-Categories`), NVIDIA NIM (`X-BILLING-INVOKE-ORIGIN`), and
++OpenCode (`x-opencode-client`). Explicit `headers` override identity headers.
++Anthropic OAuth requests keep the Claude Code identity instead.
++
++### Testing with the scripted faux provider
++
++```crystal
++alias Faux = LLM::AI::FauxProvider
++
++faux = Faux.scripted
++faux.responses = [
++  Faux.assistant_message([Faux.text("Checking."), Faux.tool_call("lookup", {q: "x"}, id: "c1")] of LLM::AI::ContentBlock, stop_reason: :tool_use),
++  Faux.assistant_message("Done."),
++] of Faux::ResponseStep
++faux.append_response { |context, options, state, model| Faux.assistant_message("call #{state.call_count}") }
++
++models = LLM::AI::Models.build
++models.register(faux.provider)
++message = models.chat(faux.model, context)
++```
++
++`Faux.scripted(provider: "faux", models: [ModelDefinition.new("faux-1")],
++tokens_per_second: nil, token_size: 3..5)` streams each queued response
++block by block in chunks of `token_size` tokens (four characters each),
++paced at `tokens_per_second` when given. Responses are `AssistantMessage`s or
++factories called with the request; an empty queue answers with an error
++message. Usage is estimated from the prompt text, with cache reads against
++the previous prompt of the same `session_id`. The handle also has `model`,
++`model(id)`, `models`, `state` (`call_count`), `append_responses`, and
++`pending_response_count`. Registering it with the id `faux` replaces the
++built-in fixed faux provider.
++
+ ### Usage and cost
+ 
+ ```crystal
+@@ -329,6 +454,12 @@ are reported as `usage.cache_read` and billed at the model's `cache_read` rate.
+   `LLM::AI::Model`, `LLM::AI::Provider`.
+ - `LLM::AI::AbortHandle`, `LLM::AI::AbortError`, `LLM::AI::ModelsError`.
+ - `LLM::AI::Pricing.calculate`, `LLM::AI::Transform.normalize`.
++- `LLM::AI::Transcript`, `LLM::AI::ToolStateChanges`, `LLM::AI::ToolSupport`.
++- `LLM::AI::Validation`, `LLM::AI::ToolValidationError`.
++- `LLM::AI::ClientIdentity`, `LLM::AI::ClientAttribution`,
++  `LLM::AI::UserAgentMode`, `LLM::AI::Identity`, `LLM::AI::VERSION`.
++- `LLM::AI::FauxProvider.scripted` and its helpers (`text`, `thinking`,
++  `tool_call`, `assistant_message`).
+ - Auth: `LLM::AI::Auth` (`.resolve`, `.login`, `.logout`),
+   `LLM::AI::FileCredentialStore`, `LLM::AI::CredentialStore`,
+   `LLM::AI::Auth::Interaction`, `LLM::AI::Auth::CLIInteraction`.
+diff --git a/shard.yml b/shard.yml
+index 16d185a..9439ff9 100644
+--- a/shard.yml
++++ b/shard.yml
+@@ -10,6 +10,10 @@ description: |
+   Anthropic, Kimi, and Moonshot, with normalized messages, tool calling,
+   thinking, usage and cost, and API-key and OAuth authentication.
+ 
++dependencies:
++  typebox:
++    github: shpeckman/typebox
++
+ crystal: ">= 1.21.0"
+ 
+ license: MIT
+diff --git a/spec/abort_spec.cr b/spec/abort_spec.cr
+index abc7be2..293c5cf 100644
+--- a/spec/abort_spec.cr
++++ b/spec/abort_spec.cr
+@@ -16,6 +16,53 @@ describe LLM::AI::AbortHandle do
+     handle.abort
+     handle.aborted?.should be_true
+   end
++
++  it "records the first reason and raises it from throw_if_aborted" do
++    handle = LLM::AI::AbortHandle.new
++    handle.reason.should be_nil
++    handle.throw_if_aborted
++    handle.abort("stop")
++    handle.abort("again")
++    handle.reason.not_nil!.message.should eq "stop"
++    handle.reason.should be_a(LLM::AI::AbortError)
++    expect_raises(LLM::AI::AbortError, "stop") { handle.throw_if_aborted }
++  end
++
++  it "defaults the reason to an AbortError" do
++    handle = LLM::AI::AbortHandle.new
++    handle.abort
++    handle.reason.not_nil!.message.should eq "The operation was aborted"
++  end
++
++  it "calls abort listeners once in registration order" do
++    handle = LLM::AI::AbortHandle.new
++    calls = [] of String
++    handle.on_abort { |reason| calls << "first:#{reason.message}" }
++    remove = handle.on_abort { |_| calls << "removed" }
++    handle.on_abort { |_| calls << "second" }
++    remove.call
++    handle.abort("now")
++    handle.abort("later")
++    calls.should eq ["first:now", "second"]
++  end
++
++  it "ignores listeners registered after abort" do
++    handle = LLM::AI::AbortHandle.new
++    handle.abort
++    called = false
++    handle.on_abort { |_| called = true }.call
++    called.should be_false
++  end
++
++  it "runs every listener and raises the first failure" do
++    handle = LLM::AI::AbortHandle.new
++    calls = [] of Int32
++    handle.on_abort { |_| calls << 1; raise "boom" }
++    handle.on_abort { |_| calls << 2 }
++    expect_raises(Exception, "boom") { handle.abort }
++    calls.should eq [1, 2]
++    handle.aborted?.should be_true
++  end
+ end
+ 
+ describe LLM::AI::AbortError do
+diff --git a/spec/anthropic_messages_spec.cr b/spec/anthropic_messages_spec.cr
+index e524af1..3f4841a 100644
+--- a/spec/anthropic_messages_spec.cr
++++ b/spec/anthropic_messages_spec.cr
+@@ -379,6 +379,45 @@ describe LLM::AI::Api::AnthropicMessages do
+     end
+   end
+ 
++  it "passes each parsed event to on_provider_event" do
++    body = anthropic_sse([message_start, end_turn_delta, message_stop])
++    api = MockApi.new.serve(body).start
++    begin
++      model = anthropic_model("http://127.0.0.1:#{api.port}")
++      seen = [] of String
++      hooks = LLM::AI::StreamHooks.new(on_provider_event: ->(data : JSON::Any, _target : LLM::AI::Model) { seen << data["type"].as_s; nil })
++      LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new(hooks: hooks), api_key_auth, nil).result
++      seen.should eq ["message_start", "message_delta", "message_stop"]
++    ensure
++      api.close
++    end
++  end
++
++  it "sends the client identity for API keys but not for OAuth" do
++    body = anthropic_sse([message_start, end_turn_delta, message_stop])
++    api = MockApi.new.serve(body).start
++    begin
++      model = anthropic_model("http://127.0.0.1:#{api.port}")
++      options = LLM::AI::StreamOptions.new(identity: LLM::AI::ClientIdentity.new(user_agent: "acme/1"))
++      LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, options, api_key_auth, nil).result
++      api.last_headers.not_nil!.get("User-Agent").should eq ["acme/1"]
++      LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, options, oauth_auth, nil).result
++      api.last_headers.not_nil!.get("User-Agent").should eq ["claude-cli/2.1.280"]
++    ensure
++      api.close
++    end
++  end
++
++  it "declares inline tools that only the transcript adds" do
++    compat = LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_changes: true)
++    model = anthropic_model_with_compat(compat)
++    update = LLM::AI::SystemMessage.new("", Time.utc, tools_added: [LLM::AI::Tool.new("calc", "calculate", JSON.parse("{\"type\":\"object\"}"))])
++    context = LLM::AI::Context.new([LLM::AI::UserMessage.new("hi", Time.utc), update] of LLM::AI::Message)
++    payload = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(model, context, LLM::AI::StreamOptions.new, false))
++    payload["tools"].as_a.map(&.["name"]).should eq ["__pi_deferred_placeholder__"]
++    payload["messages"][1]["content"][0]["type"].should eq "tool_addition"
++  end
++
+   it "sends x-api-key for non-OAuth auth" do
+     body = anthropic_sse([message_start, end_turn_delta, message_stop])
+     api = MockApi.new.serve(body).start
+diff --git a/spec/http_retry_spec.cr b/spec/http_retry_spec.cr
+index de1ef88..11bebb4 100644
+--- a/spec/http_retry_spec.cr
++++ b/spec/http_retry_spec.cr
+@@ -159,6 +159,29 @@ describe LLM::AI::Http do
+     end
+   end
+ 
++  it "applies the maximum retry delay from stream options" do
++    api = ScriptedApi.new([
++      {429, {"retry-after" => "2"}, "busy"},
++      {200, {} of String => String, "ok"},
++    ]).start
++    begin
++      capped = LLM::AI::Http::Options.for(LLM::AI::StreamOptions.new(max_retries: 1, max_retry_delay_ms: 1500))
++      capped.max_retry_delay.should eq 1500.milliseconds
++      error = expect_raises(LLM::AI::Http::Error) do
++        LLM::AI::Http.request("http://127.0.0.1:#{api.port}/v1/test", "POST", nil, "{}", capped) { }
++      end
++      (error.message || "").should contain "exceeds maximum retry delay of 1500ms"
++      uncapped = LLM::AI::Http::Options.for(LLM::AI::StreamOptions.new(max_retries: 1, max_retry_delay_ms: 0))
++      uncapped.max_retry_delay.should be_nil
++      LLM::AI::Http::Options.for(LLM::AI::StreamOptions.new).max_retry_delay.should eq 60.seconds
++      captured = ""
++      LLM::AI::Http.request("http://127.0.0.1:#{api.port}/v1/test", "POST", nil, "{}", uncapped) { |response| captured = response.body_io.gets_to_end }
++      captured.should eq "ok"
++    ensure
++      api.close
++    end
++  end
++
+   it "honors fractional retry-after seconds" do
+     api = ScriptedApi.new([
+       {429, {"retry-after" => "1.5"}, "busy"},
+diff --git a/spec/identity_spec.cr b/spec/identity_spec.cr
+new file mode 100644
+index 0000000..07abfaf
+--- /dev/null
++++ b/spec/identity_spec.cr
+@@ -0,0 +1,73 @@
++# spec/identity_spec.cr
++require "./spec_helper"
++require "../src/llm-ai"
++
++private def model(provider : String, base_url : String) : LLM::AI::Model
++  LLM::AI::Model.new("m", "m", provider, base_url, LLM::AI::ApiKind::OpenaiCompletions,
++    [LLM::AI::InputKind::Text], 1000, 1000, false, LLM::AI::ModelCost.new(0.0, 0.0, 0.0, 0.0))
++end
++
++private def attribution : LLM::AI::ClientAttribution
++  LLM::AI::ClientAttribution.new("acme", "https://acme.example", ["cli-agent", "editor"])
++end
++
++describe LLM::AI::Identity do
++  it "describes the library, runtime, and platform by default" do
++    agent = LLM::AI::Identity.user_agent(nil)
++    agent.should eq "llm-ai/#{LLM::AI::VERSION} (#{LLM::AI::Identity::PLATFORM}; crystal/#{Crystal::VERSION}; #{LLM::AI::Identity::ARCH})"
++    LLM::AI::VERSION.should match /\A\d+\.\d+\.\d+/
++  end
++
++  it "supports short, versioned, and custom user agents" do
++    LLM::AI::Identity.user_agent(LLM::AI::ClientIdentity.new(user_agent: :short)).should eq "llm-ai"
++    LLM::AI::Identity.user_agent(LLM::AI::ClientIdentity.new(version: "9.9.9")).should start_with "llm-ai/9.9.9 ("
++    LLM::AI::Identity.user_agent(LLM::AI::ClientIdentity.new(user_agent: "acme/1.0")).should eq "acme/1.0"
++  end
++
++  it "sends no attribution headers without an attribution or to other providers" do
++    LLM::AI::Identity.attribution_headers(model("openrouter", "https://openrouter.ai/api/v1"), nil).should be_empty
++    identity = LLM::AI::ClientIdentity.new(attribution: attribution)
++    LLM::AI::Identity.attribution_headers(model("deepseek", "https://api.deepseek.com"), identity).should be_empty
++  end
++
++  it "maps attribution to each provider's headers" do
++    identity = LLM::AI::ClientIdentity.new(attribution: attribution)
++    LLM::AI::Identity.attribution_headers(model("custom", "https://openrouter.ai/api/v1"), identity).should eq({
++      "HTTP-Referer"            => "https://acme.example",
++      "X-OpenRouter-Title"      => "acme",
++      "X-OpenRouter-Categories" => "cli-agent,editor",
++    })
++    LLM::AI::Identity.attribution_headers(model("custom", "https://integrate.api.nvidia.com/v1"), identity).should eq({"X-BILLING-INVOKE-ORIGIN" => "Acme"})
++    LLM::AI::Identity.attribution_headers(model("opencode", "https://example.com"), identity).should eq({"x-opencode-client" => "acme"})
++  end
++
++  it "combines the user agent and attribution" do
++    identity = LLM::AI::ClientIdentity.new(user_agent: :short, attribution: attribution)
++    LLM::AI::Identity.headers(model("nvidia", "https://x"), identity).should eq({"User-Agent" => "llm-ai", "X-BILLING-INVOKE-ORIGIN" => "Acme"})
++  end
++
++  it "round-trips through JSON" do
++    identity = LLM::AI::ClientIdentity.new(user_agent: :short, attribution: attribution, version: "1.0.0")
++    LLM::AI::ClientIdentity.from_json(identity.to_json).should eq identity
++    custom = LLM::AI::ClientIdentity.new(user_agent: "acme/2")
++    LLM::AI::ClientIdentity.from_json(custom.to_json).user_agent.should eq "acme/2"
++  end
++
++  it "sends identity headers below explicit headers on OpenAI-compatible requests" do
++    body = "data: #{({"choices" => [{"index" => 0, "delta" => {"content" => "ok"}, "finish_reason" => "stop"}]}).to_json}\n\ndata: [DONE]\n\n"
++    api = MockApi.new.serve(body).start
++    begin
++      target = model("deepseek", "http://127.0.0.1:#{api.port}")
++      context = LLM::AI::Context.new([LLM::AI::UserMessage.new("hi", Time.utc)] of LLM::AI::Message)
++      auth = LLM::AI::Auth::AuthResult.new(LLM::AI::Auth::ModelAuth.new("key"))
++      options = LLM::AI::StreamOptions.new(identity: LLM::AI::ClientIdentity.new(user_agent: :short))
++      LLM::AI::Api::OpenAICompletions.stream(target, context, options, auth, nil).result
++      api.last_headers.not_nil!["User-Agent"].should eq "llm-ai"
++      overridden = LLM::AI::StreamOptions.new(headers: {"user-agent" => "mine"})
++      LLM::AI::Api::OpenAICompletions.stream(target, context, overridden, auth, nil).result
++      api.last_headers.not_nil!.get("User-Agent").should eq ["mine"]
++    ensure
++      api.close
++    end
++  end
++end
+diff --git a/spec/openai_completions_spec.cr b/spec/openai_completions_spec.cr
+index 56b32df..abf2077 100644
+--- a/spec/openai_completions_spec.cr
++++ b/spec/openai_completions_spec.cr
+@@ -105,6 +105,22 @@ describe LLM::AI::Api::OpenAICompletions do
+     end
+   end
+ 
++  it "passes each parsed chunk to on_provider_event" do
++    body = sse_body([content_chunk("hi"), final_chunk("stop", usage_json(1, 1)), "[DONE]"])
++    api = MockApi.new.serve(body).start
++    begin
++      model = deepseek_model("http://127.0.0.1:#{api.port}")
++      seen = [] of JSON::Any
++      hooks = LLM::AI::StreamHooks.new(on_provider_event: ->(data : JSON::Any, target : LLM::AI::Model) { seen << data; target.id.should eq "deepseek-chat"; nil })
++      LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new(hooks: hooks), auth_result, nil).result
++      seen.size.should eq 2
++      seen[0]["choices"][0]["delta"]["content"].should eq "hi"
++      seen[1]["choices"][0]["finish_reason"].should eq "stop"
++    ensure
++      api.close
++    end
++  end
++
+   it "accumulates a tool call split across deltas" do
+     first = {"choices" => [{"index" => 0, "delta" => {"tool_calls" => [
+       {"index" => 0, "id" => "t1", "type" => "function", "function" => {"name" => "get_weather", "arguments" => "{\"city\":\"pari"}},
+diff --git a/spec/registry_spec.cr b/spec/registry_spec.cr
+index e2431a0..d09d2d3 100644
+--- a/spec/registry_spec.cr
++++ b/spec/registry_spec.cr
+@@ -132,6 +132,27 @@ describe LLM::AI::Models do
+     result.duration_ms.should_not be_nil
+   end
+ 
++  it "uses the api_key stream option as an auth override" do
++    with_temp_store do |store, _, _|
++      models = LLM::AI::Models.new(store, LLM::AI::Auth::AuthContext.new(->(_name : String) { "ambient".as(String?) }, ->(_path : String) { false }))
++      seen = [] of String?
++      model = LLM::AI::Model.new("m", "m", "capture", "http://x", LLM::AI::ApiKind::OpenaiCompletions,
++        [LLM::AI::InputKind::Text], 1000, 1000, false, LLM::AI::ModelCost.new(0.0, 0.0, 0.0, 0.0))
++      models.register(LLM::AI::Provider.new("capture", "Capture", "http://x", {} of String => String,
++        LLM::AI::Auth::ProviderAuth.new(LLM::AI::Auth::ApiKeyAuth.new("Key", ["CAPTURE_KEY"])), [model],
++        ->(_model : LLM::AI::Model, _context : LLM::AI::Context, _options : LLM::AI::StreamOptions, auth : LLM::AI::Auth::AuthResult, abort : LLM::AI::AbortHandle?) do
++          seen << auth.auth.api_key
++          stream = LLM::AI::MessageStream.new(abort)
++          spawn { stream.finish(LLM::AI::StreamEvent::Done.new(LLM::AI::StopReason::Stop, LLM::AI::AssistantMessage.new([] of LLM::AI::ContentBlock, "capture", "m", Time.utc, stop_reason: LLM::AI::StopReason::Stop))) }
++          stream
++        end))
++      models.chat(model, faux_context, LLM::AI::StreamOptions.new(api_key: "explicit"))
++      models.chat(model, faux_context, LLM::AI::StreamOptions.new(api_key: ""))
++      models.chat(model, faux_context)
++      seen.should eq ["explicit", "ambient", "ambient"]
++    end
++  end
++
+   it "surfaces error events as ModelsError from result" do
+     models = LLM::AI::Models.build
+     stream = models.stream(models.model("faux", "faux-error"), faux_context)
+diff --git a/spec/scripted_faux_spec.cr b/spec/scripted_faux_spec.cr
+new file mode 100644
+index 0000000..65c6ffa
+--- /dev/null
++++ b/spec/scripted_faux_spec.cr
+@@ -0,0 +1,90 @@
++# spec/scripted_faux_spec.cr
++require "./spec_helper"
++require "../src/llm-ai"
++
++alias Faux = LLM::AI::FauxProvider
++
++private def models_with(faux : Faux::Scripted) : LLM::AI::Models
++  models = LLM::AI::Models.new(LLM::AI::FileCredentialStore.new(Path[Dir.tempdir, "llm-ai-faux-#{Random::Secure.hex(4)}.json"]), LLM::AI::Auth::AuthContext.new(->(_name : String) { nil.as(String?) }, ->(_path : String) { false }))
++  models.register(faux.provider)
++  models
++end
++
++private def context(text : String = "hi") : LLM::AI::Context
++  LLM::AI::Context.new([LLM::AI::UserMessage.new(text, Time.utc)] of LLM::AI::Message)
++end
++
++describe Faux do
++  it "builds scripted messages" do
++    message = Faux.assistant_message([Faux.text("a"), Faux.tool_call("calc", {expression: "1+1"}, id: "c1")] of LLM::AI::ContentBlock, stop_reason: :tool_use)
++    message.stop_reason.should eq LLM::AI::StopReason::ToolUse
++    message.content[1].should eq LLM::AI::ToolCall.new("c1", "calc", JSON.parse(%({"expression":"1+1"})))
++    Faux.assistant_message("hi").content.should eq [LLM::AI::TextContent.new("hi")]
++  end
++
++  it "streams scripted responses with deltas and estimated usage" do
++    faux = Faux.scripted(token_size: 1..1)
++    faux.responses = [Faux.assistant_message([Faux.thinking("ponder"), Faux.text("hello world"), Faux.tool_call("calc", {x: 1}, id: "t")] of LLM::AI::ContentBlock, stop_reason: :tool_use)] of Faux::ResponseStep
++    events = [] of LLM::AI::StreamEvent
++    stream = models_with(faux).stream(faux.model, context)
++    stream.each { |event| events << event }
++    kinds = events.map(&.class.name.split("::").last)
++    kinds.first.should eq "Start"
++    kinds.should contain "ThinkingDelta"
++    kinds.should contain "ToolCallEnd"
++    kinds.last.should eq "Done"
++    events.select(LLM::AI::StreamEvent::TextDelta).map(&.text).join.should eq "hello world"
++    events.select(LLM::AI::StreamEvent::TextDelta).first.text.should eq "hell"
++    result = stream.result
++    result.provider.should eq "faux"
++    result.model.should eq "faux-1"
++    result.content[2].should eq LLM::AI::ToolCall.new("t", "calc", JSON.parse(%({"x":1})))
++    result.usage.not_nil!.input.should eq (("user:hi".size) / 4).ceil.to_i
++    result.usage.not_nil!.output.should be > 0
++    faux.state.call_count.should eq 1
++    faux.pending_response_count.should eq 0
++  end
++
++  it "calls response factories with the request" do
++    faux = Faux.scripted(models: [Faux::ModelDefinition.new("faux-reasoning", reasoning: true)])
++    faux.append_response do |request, options, state, model|
++      user = request.messages.last.as(LLM::AI::UserMessage).content.as(String)
++      Faux.assistant_message("#{user}/#{options.session_id}/#{state.call_count}/#{model.id}")
++    end
++    message = models_with(faux).chat(faux.model("faux-reasoning").not_nil!, context("ping"), LLM::AI::StreamOptions.new(session_id: "s"))
++    message.content.should eq [LLM::AI::TextContent.new("ping/s/1/faux-reasoning")]
++    faux.model("missing").should be_nil
++    faux.model.reasoning.should be_true
++  end
++
++  it "reports an error when no responses are queued or a script stops with an error" do
++    faux = Faux.scripted
++    expect_raises(LLM::AI::ModelsError, "No more faux responses queued") { models_with(faux).chat(faux.model, context) }
++    faux.responses = [Faux.assistant_message("x", stop_reason: :error, error_message: "scripted failure")] of Faux::ResponseStep
++    expect_raises(LLM::AI::ModelsError, "scripted failure") { models_with(faux).chat(faux.model, context) }
++  end
++
++  it "aborts between chunks" do
++    faux = Faux.scripted(tokens_per_second: 20.0, token_size: 2..2)
++    faux.responses = [Faux.assistant_message("one two three four five six seven eight nine ten")] of Faux::ResponseStep
++    abort = LLM::AI::AbortHandle.new
++    stream = models_with(faux).stream(faux.model, context, nil, abort)
++    spawn { sleep 30.milliseconds; abort.abort }
++    result = stream.result
++    result.stop_reason.should eq LLM::AI::StopReason::Aborted
++    result.error_message.should eq "Request was aborted"
++    result.content.size.should eq 1
++  end
++
++  it "reads cache hits from the prompt shared with the previous request of a session" do
++    faux = Faux.scripted
++    faux.responses = [Faux.assistant_message("a"), Faux.assistant_message("b")] of Faux::ResponseStep
++    models = models_with(faux)
++    options = LLM::AI::StreamOptions.new(session_id: "session")
++    first = models.chat(faux.model, context("same prefix"), options).usage.not_nil!
++    first.cache_read.should eq 0
++    first.cache_write.should eq first.input
++    second = models.chat(faux.model, context("same prefix, longer"), options).usage.not_nil!
++    second.cache_read.should eq ("user:same prefix".size / 4).ceil.to_i
++  end
++end
+diff --git a/spec/simple_options_spec.cr b/spec/simple_options_spec.cr
+index 26f86fe..6120a84 100644
+--- a/spec/simple_options_spec.cr
++++ b/spec/simple_options_spec.cr
+@@ -22,6 +22,13 @@ describe LLM::AI::SimpleOptions do
+     LLM::AI::SimpleOptions.resolve(model(2000, reasoning: false), LLM::AI::StreamOptions.new).thinking_enabled.should be_false
+   end
+ 
++  it "uses custom thinking budgets and clamps xhigh and max to high" do
++    budgets = {"low" => 300, "high" => 5000}
++    LLM::AI::SimpleOptions.resolve(model(20000), LLM::AI::StreamOptions.new(thinking_level: "low", thinking_budgets: budgets)).thinking_budget_tokens.should eq 300
++    LLM::AI::SimpleOptions.resolve(model(20000), LLM::AI::StreamOptions.new(thinking_level: "xhigh", thinking_budgets: budgets)).thinking_budget_tokens.should eq 5000
++    LLM::AI::SimpleOptions.resolve(model(20000), LLM::AI::StreamOptions.new(thinking_level: "medium", thinking_budgets: budgets)).thinking_budget_tokens.should eq 8192
++  end
++
+   it "expands max_tokens for the thinking budget" do
+     resolved = LLM::AI::SimpleOptions.resolve(model(20000), LLM::AI::StreamOptions.new(max_tokens: 2000, thinking_level: "high"))
+     resolved.max_tokens.should eq 18384
+diff --git a/spec/transcript_spec.cr b/spec/transcript_spec.cr
+new file mode 100644
+index 0000000..b99c6c1
+--- /dev/null
++++ b/spec/transcript_spec.cr
+@@ -0,0 +1,114 @@
++# spec/transcript_spec.cr
++require "./spec_helper"
++require "../src/llm-ai"
++
++private def tool(name : String, description : String = "#{name} tool") : LLM::AI::Tool
++  LLM::AI::Tool.new(name, description, JSON.parse(%({"type":"object","properties":{}})))
++end
++
++private def system(content : String, sections : Hash(String, String?)? = nil, added : Array(LLM::AI::Tool)? = nil,
++                   removed : Array(String)? = nil, timestamp : Int64 = 1) : LLM::AI::SystemMessage
++  LLM::AI::SystemMessage.new(content, Time.unix_ms(timestamp), sections, added, removed.try(&.map { |name| LLM::AI::ToolReference.new(name) }))
++end
++
++private def model(compat : LLM::AI::Compat) : LLM::AI::Model
++  LLM::AI::Model.new("m", "m", "p", "https://x", LLM::AI::ApiKind::OpenaiCompletions,
++    [LLM::AI::InputKind::Text], 1000, 1000, false, LLM::AI::ModelCost.new(0.0, 0.0, 0.0, 0.0), compat: compat)
++end
++
++describe LLM::AI::Transcript do
++  it "creates the leading system message only when a prompt or tools exist" do
++    LLM::AI::Transcript.create_initial_system_message(nil, nil).should be_nil
++    LLM::AI::Transcript.create_initial_system_message("", [] of LLM::AI::Tool).should be_nil
++    prompt_only = LLM::AI::Transcript.create_initial_system_message("Be brief.", nil).not_nil!
++    prompt_only.should eq LLM::AI::SystemMessage.new("Be brief.", Time.unix_ms(0))
++    with_tools = LLM::AI::Transcript.create_initial_system_message(nil, [tool("echo")]).not_nil!
++    with_tools.content.should eq ""
++    with_tools.tools_added.not_nil!.map(&.name).should eq ["echo"]
++  end
++
++  it "replays tool deltas in order" do
++    messages = [
++      system("base", added: [tool("a"), tool("b")]),
++      LLM::AI::UserMessage.new("hi", Time.utc),
++      system("", added: [tool("c"), tool("a", "new a")], removed: ["b"]),
++      system("", removed: ["a"]),
++      system("", added: [tool("a", "newest a")]),
++    ] of LLM::AI::Message
++    current = LLM::AI::Transcript.current_tools(messages)
++    current.map(&.name).should eq ["c", "a"]
++    current[1].description.should eq "newest a"
++  end
++
++  it "keeps a redeclared tool in its first position" do
++    messages = [system("", added: [tool("a"), tool("b")]), system("", added: [tool("a", "v2")])] of LLM::AI::Message
++    LLM::AI::Transcript.current_tools(messages).map { |item| {item.name, item.description} }.should eq [{"a", "v2"}, {"b", "b tool"}]
++  end
++
++  it "replays content, sections, and tools into one system message" do
++    messages = [
++      system("You are helpful.", {"skills" => "<skills>a</skills>", "notes" => "n"} of String => String?, [tool("echo")], timestamp: 5),
++      LLM::AI::UserMessage.new("hi", Time.utc),
++      system("Extra rule.", {"skills" => "<skills>b</skills>", "notes" => nil} of String => String?),
++    ] of LLM::AI::Message
++    current = LLM::AI::Transcript.current_system_message(messages).not_nil!
++    current.content.should eq "You are helpful.\n\nExtra rule."
++    current.sections.should eq({"skills" => "<skills>b</skills>"})
++    current.tools_added.not_nil!.map(&.name).should eq ["echo"]
++    current.timestamp.should eq Time.unix_ms(5)
++    LLM::AI::Transcript.current_system_prompt(messages).should eq "You are helpful.\n\nExtra rule.\n\n<skills>b</skills>"
++  end
++
++  it "returns no system message for transcripts without one" do
++    messages = [LLM::AI::UserMessage.new("hi", Time.utc)] of LLM::AI::Message
++    LLM::AI::Transcript.current_system_message(messages).should be_nil
++    LLM::AI::Transcript.current_system_prompt(messages).should eq ""
++  end
++
++  it "diffs tool states, treating a changed definition as a removal and an addition" do
++    changes = LLM::AI::Transcript.tool_state_changes([tool("a"), tool("b"), tool("c")], [tool("a"), tool("b", "changed"), tool("d")])
++    changes.tools_added.map(&.name).should eq ["b", "d"]
++    changes.tools_removed.map(&.name).should eq ["b", "c"]
++    unchanged = LLM::AI::Transcript.tool_state_changes([tool("a")], [tool("a")])
++    unchanged.tools_added.should be_empty
++    unchanged.tools_removed.should be_empty
++  end
++
++  it "maps compat flags to tool support" do
++    LLM::AI::Transcript.tool_support(model(LLM::AI::Compat.new)).should eq LLM::AI::ToolSupport::None
++    LLM::AI::Transcript.tool_support(model(LLM::AI::Compat.new(supports_mid_convo_tool_changes: true))).should eq LLM::AI::ToolSupport::None
++    LLM::AI::Transcript.tool_support(model(LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_additions: true))).should eq LLM::AI::ToolSupport::Additions
++    LLM::AI::Transcript.tool_support(model(LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_changes: true))).should eq LLM::AI::ToolSupport::Changes
++  end
++
++  it "folds tool state for each support level" do
++    systems = [
++      system("lead", added: [tool("a")]),
++      system("", added: [tool("b")]),
++      system("", removed: ["a"]),
++      system("", added: [tool("c")]),
++    ]
++    none = LLM::AI::Transcript.resolve_tools(systems, 1, LLM::AI::ToolSupport::None)
++    none.folded_system_messages.should eq 4
++    none.request_tools.map(&.name).should eq ["b", "c"]
++    additions = LLM::AI::Transcript.resolve_tools(systems, 1, LLM::AI::ToolSupport::Additions)
++    additions.folded_system_messages.should eq 3
++    additions.request_tools.map(&.name).should eq ["b"]
++    changes = LLM::AI::Transcript.resolve_tools(systems, 1, LLM::AI::ToolSupport::Changes)
++    changes.folded_system_messages.should eq 1
++    changes.request_tools.map(&.name).should eq ["a"]
++  end
++
++  it "treats a redeclaration as non-additive even after a removal" do
++    systems = [system("", added: [tool("a")]), system("", removed: ["a"]), system("", added: [tool("a")]), system("", added: [tool("b")])]
++    resolved = LLM::AI::Transcript.resolve_tools(systems, 1, LLM::AI::ToolSupport::Additions)
++    resolved.folded_system_messages.should eq 3
++    resolved.request_tools.map(&.name).should eq ["a"]
++  end
++
++  it "renders leading and update text" do
++    message = system("Base.", {"rules" => "Be kind.", "old" => nil} of String => String?)
++    LLM::AI::Transcript.system_text(message).should eq "Base.\n\nBe kind."
++    LLM::AI::Transcript.system_update_text(message).should eq "Base.\n\nUpdated system prompt section \"rules\":\n\nBe kind.\n\nRemoved system prompt section \"old\"."
++  end
++end
+diff --git a/spec/transform_messages_spec.cr b/spec/transform_messages_spec.cr
+index d3c9bc5..1e55fbe 100644
+--- a/spec/transform_messages_spec.cr
++++ b/spec/transform_messages_spec.cr
+@@ -20,7 +20,77 @@ private def model(reasoning : Bool, vision : Bool = true) : LLM::AI::Model
+     input, 1000, 1000, reasoning, LLM::AI::ModelCost.new(1.0, 1.0, 0.1, 1.0, nil))
+ end
+ 
++private def compat_model(compat : LLM::AI::Compat) : LLM::AI::Model
++  LLM::AI::Model.new("m", "m", "p", "https://x", LLM::AI::ApiKind::OpenaiCompletions,
++    [LLM::AI::InputKind::Text], 1000, 1000, false, LLM::AI::ModelCost.new(1.0, 1.0, 0.1, 1.0, nil), compat: compat)
++end
++
++private def tool(name : String) : LLM::AI::Tool
++  LLM::AI::Tool.new(name, "#{name} tool", JSON.parse(%({"type":"object"})))
++end
++
++private def tool_transcript : Array(LLM::AI::Message)
++  [
++    LLM::AI::SystemMessage.new("lead", Time.utc, tools_added: [tool("a")]),
++    user_text("one"),
++    LLM::AI::SystemMessage.new("", Time.utc, tools_added: [tool("b")]),
++    user_text("two"),
++    LLM::AI::SystemMessage.new("", Time.utc, tools_removed: [LLM::AI::ToolReference.new("a")]),
++    user_text("three"),
++    LLM::AI::SystemMessage.new("", Time.utc, tools_added: [tool("c")]),
++    user_text("four"),
++  ] of LLM::AI::Message
++end
++
++private def tool_fields(context : LLM::AI::Context) : Array(Tuple(Array(String)?, Array(String)?))
++  context.messages.select(LLM::AI::SystemMessage).map do |message|
++    {message.tools_added.try(&.map(&.name)), message.tools_removed.try(&.map(&.name))}
++  end
++end
++
+ describe LLM::AI::Transform do
++  it "sends the current transcript tools at the top level when the model has no mid-conversation tools" do
++    normalized = LLM::AI::Transform.normalize(LLM::AI::Context.new(tool_transcript), compat_model(LLM::AI::Compat.new))
++    normalized.tools.map(&.name).should eq ["b", "c"]
++    tool_fields(normalized).should eq [{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}]
++  end
++
++  it "folds tool changes up to the last removal for addition-only models" do
++    compat = LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_additions: true)
++    normalized = LLM::AI::Transform.normalize(LLM::AI::Context.new(tool_transcript), compat_model(compat))
++    normalized.tools.map(&.name).should eq ["b"]
++    tool_fields(normalized).should eq [{nil, nil}, {nil, nil}, {nil, nil}, {["c"], nil}]
++  end
++
++  it "keeps every later tool change in place for models with native tool changes" do
++    compat = LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_changes: true)
++    normalized = LLM::AI::Transform.normalize(LLM::AI::Context.new(tool_transcript), compat_model(compat))
++    normalized.tools.map(&.name).should eq ["a"]
++    tool_fields(normalized).should eq [{nil, nil}, {["b"], nil}, {nil, ["a"]}, {["c"], nil}]
++  end
++
++  it "treats context tools as the initial declaration" do
++    messages = [user_text("hi"), LLM::AI::SystemMessage.new("", Time.utc, tools_added: [tool("b")])] of LLM::AI::Message
++    plain = LLM::AI::Transform.normalize(LLM::AI::Context.new(messages, "prompt", [tool("a")]), compat_model(LLM::AI::Compat.new))
++    plain.system_prompt.should eq "prompt"
++    plain.tools.map(&.name).should eq ["a", "b"]
++    compat = LLM::AI::Compat.new(supports_mid_convo_system_messages: true, supports_mid_convo_tool_additions: true)
++    additive = LLM::AI::Transform.normalize(LLM::AI::Context.new(messages, "prompt", [tool("a")]), compat_model(compat))
++    additive.tools.map(&.name).should eq ["a"]
++    tool_fields(additive).should eq [{["b"], nil}]
++  end
++
++  it "keeps tool result details and usage" do
++    call = LLM::AI::ToolCall.new("t1", "lookup", JSON.parse("{}"))
++    usage = LLM::AI::Usage.new(1, 2, 0, 0, 3, LLM::AI::UsageCost.new(0.0, 0.0, 0.0, 0.0, 0.0))
++    result = LLM::AI::ToolResultMessage.new("t1", "lookup", [LLM::AI::TextContent.new("ok")] of LLM::AI::ContentBlock, Time.utc,
++      details: JSON.parse(%({"path":"/tmp"})), usage: usage)
++    context = LLM::AI::Context.new([assistant(call), result] of LLM::AI::Message)
++    normalized = LLM::AI::Transform.normalize(context, model(true)).messages[1].as(LLM::AI::ToolResultMessage)
++    normalized.details.should eq JSON.parse(%({"path":"/tmp"}))
++    normalized.usage.should eq usage
++  end
++
+   it "drops aborted and errored assistant turns" do
+     context = LLM::AI::Context.new([
+       user_text("hi"),
+diff --git a/spec/validation_spec.cr b/spec/validation_spec.cr
+new file mode 100644
+index 0000000..cb40099
+--- /dev/null
++++ b/spec/validation_spec.cr
+@@ -0,0 +1,66 @@
++# spec/validation_spec.cr
++require "./spec_helper"
++require "../src/llm-ai"
++
++private def tool(schema : String) : LLM::AI::Tool
++  LLM::AI::Tool.new("echo", "Echo", JSON.parse(schema))
++end
++
++private def call(arguments : String, error : String? = nil) : LLM::AI::ToolCall
++  LLM::AI::ToolCall.new("call-1", "echo", JSON.parse(arguments), arguments_error: error)
++end
++
++describe LLM::AI::Validation do
++  it "returns valid arguments as a copy" do
++    tool_call = call(%({"value":"hi"}))
++    args = LLM::AI::Validation.validate_tool_arguments(tool(%({"type":"object","properties":{"value":{"type":"string"}},"required":["value"]})), tool_call)
++    args.should eq JSON.parse(%({"value":"hi"}))
++    args.as_h["value"] = JSON::Any.new("changed")
++    tool_call.arguments["value"].should eq "hi"
++  end
++
++  it "coerces primitives to the schema types" do
++    schema = tool(%({"type":"object","properties":{"count":{"type":"integer"},"ratio":{"type":"number"},"flag":{"type":"boolean"},"label":{"type":"string"},"items":{"type":"array","items":{"type":"number"}}}}))
++    args = LLM::AI::Validation.validate_tool_arguments(schema, call(%({"count":"3","ratio":"1.5","flag":"true","label":7,"items":["1","2.5"]})))
++    args.should eq JSON.parse(%({"count":3,"ratio":1.5,"flag":true,"label":"7","items":[1,2.5]}))
++  end
++
++  it "coerces union members to the first schema they satisfy" do
++    schema = tool(%({"type":"object","properties":{"value":{"anyOf":[{"type":"number"},{"type":"boolean"}]}}}))
++    LLM::AI::Validation.validate_tool_arguments(schema, call(%({"value":"false"})))["value"].as_bool.should be_false
++    LLM::AI::Validation.validate_tool_arguments(schema, call(%({"value":"4"})))["value"].should eq 4
++  end
++
++  it "drops null optional properties that do not accept null" do
++    schema = tool(%({"type":"object","properties":{"value":{"type":"string"},"note":{"type":"string"},"maybe":{"type":["string","null"]}},"required":["value"]}))
++    args = LLM::AI::Validation.validate_tool_arguments(schema, call(%({"value":"x","note":null,"maybe":null})))
++    args.should eq JSON.parse(%({"value":"x","maybe":null}))
++  end
++
++  it "formats validation failures with paths and the received arguments" do
++    schema = tool(%({"type":"object","properties":{"value":{"type":"string"},"nested":{"type":"object","properties":{"n":{"type":"number"}},"required":["n"]}},"required":["value"]}))
++    error = expect_raises(LLM::AI::ToolValidationError) do
++      LLM::AI::Validation.validate_tool_arguments(schema, call(%({"nested":{}})))
++    end
++    message = error.message.not_nil!
++    message.should start_with "Validation failed for tool \"echo\":\n"
++    message.should contain "  - value: must have required properties value"
++    message.should contain "  - nested.n: must have required properties n"
++    message.should end_with "Received arguments:\n{\n  \"nested\": {}\n}"
++  end
++
++  it "reports argument parse errors before validating" do
++    expect_raises(LLM::AI::ToolValidationError, "Invalid arguments for tool \"echo\": bad json") do
++      LLM::AI::Validation.validate_tool_arguments(tool(%({"type":"object"})), call("{}", "bad json"))
++    end
++  end
++
++  it "finds the tool for a call" do
++    tools = [tool(%({"type":"object"}))]
++    LLM::AI::Validation.validate_tool_call(tools, call(%({"a":1}))).should eq JSON.parse(%({"a":1}))
++    missing = LLM::AI::ToolCall.new("c", "missing", JSON.parse("{}"))
++    expect_raises(LLM::AI::ToolValidationError, "Tool \"missing\" not found") do
++      LLM::AI::Validation.validate_tool_call(tools, missing)
++    end
++  end
++end
+diff --git a/src/llm-ai.cr b/src/llm-ai.cr
+index f66a5ea..c44bcba 100644
+--- a/src/llm-ai.cr
++++ b/src/llm-ai.cr
+@@ -1,5 +1,8 @@
+ # src/llm-ai.cr
+ require "./llm-ai/types"
++require "./llm-ai/identity"
++require "./llm-ai/transcript"
++require "./llm-ai/validation"
+ require "./llm-ai/abort"
+ require "./llm-ai/partial_json"
+ require "./llm-ai/sse"
+@@ -18,10 +21,12 @@ require "./llm-ai/api/jsonify"
+ require "./llm-ai/api/openai_completions"
+ require "./llm-ai/api/anthropic_messages"
+ require "./llm-ai/providers/faux"
++require "./llm-ai/providers/scripted_faux"
+ require "./llm-ai/providers/deepseek"
+ require "./llm-ai/providers/anthropic"
+ require "./llm-ai/providers/kimi"
+ require "./llm-ai/providers/moonshot"
+ 
+ module LLM::AI
++  VERSION = {{ read_file("#{__DIR__}/../shard.yml").lines.select(&.starts_with?("version:")).first.split(":")[1].strip }}
+ end
+diff --git a/src/llm-ai/abort.cr b/src/llm-ai/abort.cr
+index 16a0e8f..6660173 100644
+--- a/src/llm-ai/abort.cr
++++ b/src/llm-ai/abort.cr
+@@ -1,22 +1,51 @@
+ # src/llm-ai/abort.cr
+ module LLM::AI
++  class AbortError < Exception
++  end
++
+   class AbortHandle
+-    @channel : Channel(Nil)
++    NOOP_REMOVER = -> { nil }
+ 
+-    def initialize
+-      @channel = Channel(Nil).new
++    getter reason : Exception? = nil
++    getter? aborted : Bool = false
++    @listeners = {} of Int32 => Proc(Exception, Nil)
++    @next_listener = 0
++
++    def abort(reason : Exception = AbortError.new("The operation was aborted")) : Nil
++      return if @aborted
++      @aborted = true
++      @reason = reason
++      listeners = @listeners.values
++      @listeners.clear
++      failure = nil
++      listeners.each do |listener|
++        listener.call(reason)
++      rescue error
++        failure ||= error
++      end
++      failure.try { |error| raise error }
+     end
+ 
+-    def abort : Nil
+-      @channel.close
+-      nil
++    def abort(message : String) : Nil
++      abort(AbortError.new(message))
+     end
+ 
+-    def aborted? : Bool
+-      @channel.closed?
++    def on_abort(&listener : Exception -> Nil) : Proc(Nil)
++      return NOOP_REMOVER if @aborted
++      id = @next_listener
++      @next_listener += 1
++      @listeners[id] = listener
++      remover(id)
+     end
+-  end
+ 
+-  class AbortError < Exception
++    def throw_if_aborted : Nil
++      if reason = @reason
++        raise reason
++      end
++    end
++
++    private def remover(id : Int32) : Proc(Nil)
++      -> { @listeners.delete(id); nil }
++    end
+   end
+ end
+diff --git a/src/llm-ai/api/anthropic_messages.cr b/src/llm-ai/api/anthropic_messages.cr
+index c728d78..fa6fe47 100644
+--- a/src/llm-ai/api/anthropic_messages.cr
++++ b/src/llm-ai/api/anthropic_messages.cr
+@@ -97,19 +97,21 @@ module LLM::AI::Api::AnthropicMessages
+ 
+   def self.handle_event(event : SSE::Event, state : StreamState) : Nil
+     return if event.data.empty?
++    data = JSON.parse(event.data)
++    state.options.hooks.try(&.on_provider_event).try &.call(data, state.model)
+     case event.name
+     when "message_start"
+-      handle_message_start(JSON.parse(event.data), state)
++      handle_message_start(data, state)
+     when "message_delta"
+-      handle_message_delta(JSON.parse(event.data), state)
++      handle_message_delta(data, state)
+     when "message_stop"
+       state.saw_message_stop = true
+     when "content_block_start"
+-      handle_block_start(JSON.parse(event.data), state)
++      handle_block_start(data, state)
+     when "content_block_delta"
+-      handle_block_delta(JSON.parse(event.data), state)
++      handle_block_delta(data, state)
+     when "content_block_stop"
+-      handle_block_stop(JSON.parse(event.data), state)
++      handle_block_stop(data, state)
+     end
+   end
+ 
+@@ -124,7 +126,7 @@ module LLM::AI::Api::AnthropicMessages
+         "POST",
+         request_headers(options, auth, model, context, oauth),
+         build_payload(model, context, options, oauth),
+-        http_options(options),
++        Http::Options.for(options),
+         abort,
+       ) do |response|
+         options.hooks.try(&.on_response).try &.call(response.status_code, response.headers)
+@@ -392,11 +394,10 @@ module LLM::AI::Api::AnthropicMessages
+ 
+   private def self.request_headers(options : StreamOptions, auth : Auth::AuthResult, model : Model, context : Context, oauth : Bool) : Hash(String, String)
+     resolved = SimpleOptions.resolve(model, options)
+-    headers = {
+-      "Content-Type"      => "application/json",
+-      "Accept"            => "application/json",
+-      "anthropic-version" => "2023-06-01",
+-    } of String => String
++    headers = oauth ? {} of String => String : Identity.headers(model, options.identity)
++    headers["Content-Type"] = "application/json"
++    headers["Accept"] = "application/json"
++    headers["anthropic-version"] = "2023-06-01"
+     auth.auth.headers.try &.each { |key, value| headers[key] = value }
+     if oauth
+       if key = auth.auth.api_key
+@@ -431,7 +432,11 @@ module LLM::AI::Api::AnthropicMessages
+   end
+ 
+   private def self.native_tool_changes(model : Model, context : Context) : Bool
+-    model.compat.supports_mid_convo_system_messages && model.compat.supports_mid_convo_tool_changes && !context.tools.empty?
++    Transcript.tool_support(model).changes? && (!context.tools.empty? || context.messages.any? { |message| tool_change?(message) })
++  end
++
++  private def self.tool_change?(message : Message) : Bool
++    message.is_a?(SystemMessage) && !(message.tools_added.nil? && message.tools_removed.nil?)
+   end
+ 
+   private def self.oauth_mode(auth : Auth::AuthResult) : Bool
+@@ -453,13 +458,6 @@ module LLM::AI::Api::AnthropicMessages
+     raise ModelsError.new("auth", "No API key for provider: anthropic")
+   end
+ 
+-  private def self.http_options(options : StreamOptions) : Http::Options
+-    Http::Options.new(
+-      read_timeout: options.timeout_ms ? options.timeout_ms.not_nil!.milliseconds : 10.minutes,
+-      max_retries: options.max_retries,
+-    )
+-  end
+-
+   private def self.resolve_cache_retention(options : StreamOptions) : Symbol
+     if retention = options.cache_retention
+       return retention
+@@ -527,7 +525,7 @@ module LLM::AI::Api::AnthropicMessages
+     end
+     if first = context.messages.first?
+       if first.is_a?(SystemMessage)
+-        text = system_text(first)
++        text = Transcript.system_text(first)
+         blocks << text unless text.empty?
+       end
+     end
+@@ -783,7 +781,7 @@ module LLM::AI::Api::AnthropicMessages
+   end
+ 
+   private def self.write_tools(json : JSON::Builder, model : Model, context : Context, retention : Symbol, oauth : Bool) : Nil
+-    return if context.tools.empty?
++    return if context.tools.empty? && !native_tool_changes(model, context)
+     json.field "tools" do
+       json.array do
+         context.tools.each_with_index do |tool, index|
+@@ -892,26 +890,8 @@ module LLM::AI::Api::AnthropicMessages
+     name
+   end
+ 
+-  private def self.system_text(message : SystemMessage) : String
+-    parts = [content_text(message.content)]
+-    message.sections.try &.each_value do |value|
+-      parts << value unless value.nil?
+-    end
+-    parts.reject(&.empty?).join("\n\n")
+-  end
+-
+-  private def self.system_update_text(message : SystemMessage) : String
+-    parts = [] of String
+-    text = content_text(message.content)
+-    parts << text unless text.empty?
+-    message.sections.try &.each do |name, value|
+-      parts << (value ? "Updated system prompt section \"#{name}\":\n\n#{value}" : "Removed system prompt section \"#{name}\".")
+-    end
+-    parts.join("\n\n")
+-  end
+-
+   private def self.system_update_param(message : SystemMessage, model : Model, retention : Symbol, oauth : Bool, native : Bool) : JSON::Any?
+-    text = system_update_text(message)
++    text = Transcript.system_update_text(message)
+     return if text.empty? && !native
+     return object_param({"role" => JSON::Any.new("system"), "content" => JSON::Any.new(text)}) unless native
+     blocks = [] of JSON::Any
+@@ -947,12 +927,4 @@ module LLM::AI::Api::AnthropicMessages
+       }),
+     })
+   end
+-
+-  private def self.content_text(content : String) : String
+-    content
+-  end
+-
+-  private def self.content_text(content : Array(TextContent)) : String
+-    content.map(&.text).join("\n")
+-  end
+ end
+diff --git a/src/llm-ai/api/openai_completions.cr b/src/llm-ai/api/openai_completions.cr
+index 09bc8d7..6c9909c 100644
+--- a/src/llm-ai/api/openai_completions.cr
++++ b/src/llm-ai/api/openai_completions.cr
+@@ -123,9 +123,9 @@ module LLM::AI::Api::OpenAICompletions
+       Http.request(
+         "#{model.base_url}/chat/completions",
+         "POST",
+-        request_headers(options, auth),
++        request_headers(model, options, auth),
+         build_payload(model, context, options),
+-        http_options(options),
++        Http::Options.for(options),
+         abort,
+       ) do |response|
+         options.hooks.try(&.on_response).try &.call(response.status_code, response.headers)
+@@ -133,7 +133,9 @@ module LLM::AI::Api::OpenAICompletions
+         while event = reader.next
+           break if abort.try(&.aborted?)
+           break if event.data == "[DONE]"
+-          handle_chunk(JSON.parse(event.data), state)
++          chunk = JSON.parse(event.data)
++          options.hooks.try(&.on_provider_event).try &.call(chunk, model)
++          handle_chunk(chunk, state)
+           Fiber.yield
+         end
+       end
+@@ -447,21 +449,15 @@ module LLM::AI::Api::OpenAICompletions
+     end
+   end
+ 
+-  private def self.request_headers(options : StreamOptions, auth : Auth::AuthResult) : Hash(String, String)
+-    headers = {"Content-Type" => "application/json"} of String => String
++  private def self.request_headers(model : Model, options : StreamOptions, auth : Auth::AuthResult) : Hash(String, String)
++    headers = Identity.headers(model, options.identity)
++    headers["Content-Type"] = "application/json"
+     headers["Authorization"] = "Bearer #{auth.auth.api_key}" if auth.auth.api_key
+     auth.auth.headers.try &.each { |key, value| headers[key] = value }
+     options.headers.try &.each { |key, value| headers[key] = value }
+     headers
+   end
+ 
+-  private def self.http_options(options : StreamOptions) : Http::Options
+-    Http::Options.new(
+-      read_timeout: options.timeout_ms ? options.timeout_ms.not_nil!.milliseconds : 10.minutes,
+-      max_retries: options.max_retries,
+-    )
+-  end
+-
+   private def self.payload(json : JSON::Builder, model : Model, context : Context, options : StreamOptions, resolved : ResolvedOptions) : Nil
+     json.object do
+       json.field "model", model.id
+@@ -580,7 +576,7 @@ module LLM::AI::Api::OpenAICompletions
+         end
+       end
+     end
+-    text = index == 0 ? system_text(message) : system_update_text(message)
++    text = index == 0 ? Transcript.system_text(message) : Transcript.system_update_text(message)
+     return if text.empty?
+     json.object do
+       json.field "role", "system"
+@@ -776,30 +772,4 @@ module LLM::AI::Api::OpenAICompletions
+       end
+     end
+   end
+-
+-  private def self.system_text(message : SystemMessage) : String
+-    parts = [content_text(message.content)]
+-    message.sections.try &.each_value do |value|
+-      parts << value unless value.nil?
+-    end
+-    parts.reject(&.empty?).join("\n\n")
+-  end
+-
+-  private def self.system_update_text(message : SystemMessage) : String
+-    parts = [] of String
+-    text = content_text(message.content)
+-    parts << text unless text.empty?
+-    message.sections.try &.each do |name, value|
+-      parts << (value ? "Updated system prompt section \"#{name}\":\n\n#{value}" : "Removed system prompt section \"#{name}\".")
+-    end
+-    parts.join("\n\n")
+-  end
+-
+-  private def self.content_text(content : String) : String
+-    content
+-  end
+-
+-  private def self.content_text(content : Array(TextContent)) : String
+-    content.map(&.text).join("\n")
+-  end
+ end
+diff --git a/src/llm-ai/api/simple_options.cr b/src/llm-ai/api/simple_options.cr
+index 887c44b..9e6866e 100644
+--- a/src/llm-ai/api/simple_options.cr
++++ b/src/llm-ai/api/simple_options.cr
+@@ -18,7 +18,7 @@ module LLM::AI
+     def self.resolve(model : Model, options : StreamOptions) : ResolvedOptions
+       thinking_enabled = model.reasoning && (options.thinking_enabled == true || !options.thinking_level.nil?)
+       level = options.thinking_level
+-      budget = thinking_enabled ? budget_for(level) : nil
++      budget = thinking_enabled ? budget_for(level, options.thinking_budgets) : nil
+       effort = thinking_enabled ? effort_for(model, level) : nil
+       max_tokens = options.max_tokens
+       if thinking_enabled && max_tokens && budget
+@@ -31,15 +31,10 @@ module LLM::AI
+       ResolvedOptions.new(max_tokens, options.temperature, thinking_enabled, budget, effort, merged_sampling(model, level, options))
+     end
+ 
+-    private def self.budget_for(level : String?) : Int32
+-      case level
+-      when nil
+-        1024
+-      when "xhigh", "max"
+-        16384
+-      else
+-        BUDGETS[level]? || 1024
+-      end
++    private def self.budget_for(level : String?, custom : Hash(String, Int32)?) : Int32
++      return 1024 unless level
++      key = level == "xhigh" || level == "max" ? "high" : level
++      custom.try(&.[key]?) || BUDGETS[key]? || 1024
+     end
+ 
+     private def self.effort_for(model : Model, level : String?) : String?
+diff --git a/src/llm-ai/api/transform_messages.cr b/src/llm-ai/api/transform_messages.cr
+index ebb7b82..3641b64 100644
+--- a/src/llm-ai/api/transform_messages.cr
++++ b/src/llm-ai/api/transform_messages.cr
+@@ -34,20 +34,12 @@ module LLM::AI::Transform
+           pending_calls = calls
+           answered_ids = Set(String).new
+         end
+-        messages << AssistantMessage.new(
+-          blocks, message.provider, message.model, message.timestamp, message.api,
+-          message.response_model, message.response_id, message.provider_thinking_level,
+-          message.thinking_level, message.usage, message.stop_reason, message.deferred,
+-          message.error_message, message.raw_stop_reason, message.end_turn, message.duration_ms,
+-        )
++        messages << message.copy_with(content: blocks)
+       when ToolResultMessage
+         call_id = id_map.fetch(message.tool_call_id, message.tool_call_id)
+         answered_ids << call_id
+         blocks = message.content.compact_map { |block| convert_block(block, target, false, id_map) }
+-        messages << ToolResultMessage.new(
+-          call_id, message.tool_name, blocks, message.timestamp,
+-          message.is_error, message.duration_ms,
+-        )
++        messages << message.copy_with(tool_call_id: call_id, content: blocks)
+       when UserMessage
+         close_pending.call
+         raw_content = message.content
+@@ -71,7 +63,25 @@ module LLM::AI::Transform
+ 
+     close_pending.call
+ 
+-    Context.new(messages, context.system_prompt, context.tools)
++    resolve_tools(messages, context, target)
++  end
++
++  private def self.resolve_tools(messages : Array(Message), context : Context, target : Model) : Context
++    system_messages = [] of SystemMessage
++    system_messages << SystemMessage.new("", Transcript::EPOCH, tools_added: context.tools) unless context.tools.empty?
++    virtual = system_messages.size
++    leading = virtual + (Transcript.initial_system_message(messages) ? 1 : 0)
++    messages.each { |message| system_messages << message if message.is_a?(SystemMessage) }
++    resolved = Transcript.resolve_tools(system_messages, leading, Transcript.tool_support(target))
++    seen = virtual
++    rewritten = messages.map do |message|
++      next message unless message.is_a?(SystemMessage)
++      folded = seen < resolved.folded_system_messages
++      seen += 1
++      next message unless folded && (message.tools_added || message.tools_removed)
++      message.copy_with(tools_added: nil, tools_removed: nil).as(Message)
++    end
++    Context.new(rewritten, context.system_prompt, resolved.request_tools)
+   end
+ 
+   private def self.convert_block(block : ContentBlock, target : Model, same_model : Bool, id_map : Hash(String, String)) : ContentBlock?
+diff --git a/src/llm-ai/http.cr b/src/llm-ai/http.cr
+index 97a0e19..adc87ab 100644
+--- a/src/llm-ai/http.cr
++++ b/src/llm-ai/http.cr
+@@ -2,8 +2,8 @@
+ require "http/client"
+ 
+ module LLM::AI::Http
+-  RETRYABLE_STATUSES      = [408, 409, 429]
+-  MAX_RETRY_DELAY_SECONDS = 60
++  RETRYABLE_STATUSES = [408, 409, 429]
++  MAX_RETRY_DELAY    = 60.seconds
+ 
+   class Error < Exception
+     getter status : Int32
+@@ -19,8 +19,21 @@ module LLM::AI::Http
+     getter connect_timeout : Time::Span
+     getter read_timeout : Time::Span
+     getter max_retries : Int32
++    getter max_retry_delay : Time::Span?
+ 
+-    def initialize(@connect_timeout : Time::Span = 10.seconds, @read_timeout : Time::Span = 10.minutes, @max_retries : Int32 = 0)
++    def initialize(@connect_timeout : Time::Span = 10.seconds, @read_timeout : Time::Span = 10.minutes, @max_retries : Int32 = 0, @max_retry_delay : Time::Span? = MAX_RETRY_DELAY)
++    end
++
++    def self.for(options : StreamOptions) : Options
++      max_retry_delay = case ms = options.max_retry_delay_ms
++                        in Nil   then MAX_RETRY_DELAY
++                        in Int32 then ms > 0 ? ms.milliseconds : nil
++                        end
++      new(
++        read_timeout: options.timeout_ms.try(&.milliseconds) || 10.minutes,
++        max_retries: options.max_retries,
++        max_retry_delay: max_retry_delay,
++      )
+     end
+   end
+ 
+@@ -31,7 +44,7 @@ module LLM::AI::Http
+       return if error.nil?
+       raise AbortError.new("Request was aborted") if abort.try(&.aborted?)
+       if retryable?(error) && retries < options.max_retries
+-        delay = retry_delay(error, retries)
++        delay = retry_delay(error, retries, options.max_retry_delay)
+         abortable_sleep(delay, abort)
+         retries += 1
+         next
+@@ -96,12 +109,12 @@ module LLM::AI::Http
+     error.status >= 500 || RETRYABLE_STATUSES.includes?(error.status)
+   end
+ 
+-  private def self.retry_delay(error : Error, attempt : Int32) : Time::Span
++  private def self.retry_delay(error : Error, attempt : Int32, max_delay : Time::Span?) : Time::Span
+     if ms = error.headers["retry-after-ms"]?
+       begin
+         value = ms.to_f
+-        if value > MAX_RETRY_DELAY_SECONDS * 1000
+-          raise Error.new(error.status, "retry-after-ms #{ms}ms exceeds maximum retry delay of #{MAX_RETRY_DELAY_SECONDS}s", error.headers, error.body)
++        if max_delay && value > max_delay.total_milliseconds
++          raise Error.new(error.status, "retry-after-ms #{ms}ms exceeds maximum retry delay of #{delay_text(max_delay)}", error.headers, error.body)
+         end
+         return value.milliseconds if value.finite?
+       rescue ArgumentError
+@@ -110,8 +123,8 @@ module LLM::AI::Http
+     if secs = error.headers["retry-after"]?
+       value = retry_after_seconds(secs)
+       if value
+-        if value > MAX_RETRY_DELAY_SECONDS
+-          raise Error.new(error.status, "retry-after #{secs}s exceeds maximum retry delay of #{MAX_RETRY_DELAY_SECONDS}s", error.headers, error.body)
++        if max_delay && value > max_delay.total_seconds
++          raise Error.new(error.status, "retry-after #{secs}s exceeds maximum retry delay of #{delay_text(max_delay)}", error.headers, error.body)
+         end
+         return value.seconds
+       end
+@@ -120,6 +133,11 @@ module LLM::AI::Http
+     (base * (0.75 + rand * 0.25)).seconds
+   end
+ 
++  private def self.delay_text(delay : Time::Span) : String
++    seconds = delay.total_seconds
++    seconds == seconds.to_i ? "#{seconds.to_i}s" : "#{delay.total_milliseconds.to_i64}ms"
++  end
++
+   private def self.retry_after_seconds(raw : String) : Float64?
+     begin
+       return raw.to_f
+diff --git a/src/llm-ai/identity.cr b/src/llm-ai/identity.cr
+new file mode 100644
+index 0000000..c8e6d75
+--- /dev/null
++++ b/src/llm-ai/identity.cr
+@@ -0,0 +1,108 @@
++# src/llm-ai/identity.cr
++require "json"
++require "uri"
++
++module LLM::AI
++  enum UserAgentMode
++    Short
++    Detailed
++  end
++
++  struct ClientAttribution
++    include JSON::Serializable
++
++    getter name : String
++    getter url : String
++    getter categories : Array(String)?
++
++    def initialize(@name : String, @url : String, @categories : Array(String)? = nil)
++    end
++  end
++
++  module UserAgentConverter
++    def self.from_json(pull : JSON::PullParser) : UserAgentMode | String
++      value = pull.read_string
++      UserAgentMode.parse?(value) || value
++    end
++
++    def self.to_json(value : UserAgentMode | String, json : JSON::Builder) : Nil
++      json.string(value.is_a?(UserAgentMode) ? value.to_s.downcase : value)
++    end
++  end
++
++  struct ClientIdentity
++    include JSON::Serializable
++
++    @[JSON::Field(converter: LLM::AI::UserAgentConverter)]
++    getter user_agent : (UserAgentMode | String)?
++    getter attribution : ClientAttribution?
++    getter version : String?
++
++    def initialize(@user_agent : (UserAgentMode | String)? = nil, @attribution : ClientAttribution? = nil, @version : String? = nil)
++    end
++  end
++
++  module Identity
++    PRODUCT         = "llm-ai"
++    NVIDIA_NIM_HOST = "integrate.api.nvidia.com"
++    OPENCODE_HOST   = "opencode.ai"
++    PLATFORM        = {% if flag?(:linux) %}"linux"{% elsif flag?(:darwin) %}"darwin"{% elsif flag?(:win32) %}"win32"{% elsif flag?(:freebsd) %}"freebsd"{% elsif flag?(:openbsd) %}"openbsd"{% else %}"unknown"{% end %}
++    ARCH            = {% if flag?(:x86_64) %}"x86_64"{% elsif flag?(:aarch64) %}"aarch64"{% elsif flag?(:arm) %}"arm"{% elsif flag?(:i386) %}"i386"{% else %}"unknown"{% end %}
++
++    def self.version(identity : ClientIdentity?) : String
++      identity.try(&.version) || VERSION
++    end
++
++    def self.user_agent(identity : ClientIdentity?) : String
++      case mode = identity.try(&.user_agent) || UserAgentMode::Detailed
++      in String
++        mode
++      in UserAgentMode
++        mode.short? ? PRODUCT : "#{PRODUCT}/#{version(identity)} (#{PLATFORM}; crystal/#{Crystal::VERSION}; #{ARCH})"
++      end
++    end
++
++    def self.attribution_headers(model : Model, identity : ClientIdentity?) : Hash(String, String)
++      headers = {} of String => String
++      attribution = identity.try(&.attribution)
++      return headers unless attribution
++      if open_router?(model)
++        headers["HTTP-Referer"] = attribution.url
++        headers["X-OpenRouter-Title"] = attribution.name
++        if (categories = attribution.categories) && !categories.empty?
++          headers["X-OpenRouter-Categories"] = categories.join(",")
++        end
++      elsif nvidia_nim?(model)
++        name = attribution.name
++        headers["X-BILLING-INVOKE-ORIGIN"] = "#{name[0]?.try(&.upcase)}#{name[1..]?}"
++      elsif open_code?(model)
++        headers["x-opencode-client"] = attribution.name
++      end
++      headers
++    end
++
++    def self.headers(model : Model, identity : ClientIdentity?) : Hash(String, String)
++      headers = {"User-Agent" => user_agent(identity)}
++      headers.merge!(attribution_headers(model, identity))
++      headers
++    end
++
++    private def self.open_router?(model : Model) : Bool
++      model.provider == "openrouter" || model.base_url.includes?("openrouter.ai")
++    end
++
++    private def self.nvidia_nim?(model : Model) : Bool
++      model.provider == "nvidia" || host?(model.base_url, NVIDIA_NIM_HOST)
++    end
++
++    private def self.open_code?(model : Model) : Bool
++      model.provider == "opencode" || model.provider == "opencode-go" || host?(model.base_url, OPENCODE_HOST)
++    end
++
++    private def self.host?(base_url : String, expected : String) : Bool
++      URI.parse(base_url).host == expected
++    rescue URI::Error
++      false
++    end
++  end
++end
+diff --git a/src/llm-ai/models.cr b/src/llm-ai/models.cr
+index e438bf7..3501fb0 100644
+--- a/src/llm-ai/models.cr
++++ b/src/llm-ai/models.cr
+@@ -112,9 +112,11 @@ module LLM::AI
+ 
+     def stream(model : Model, context : Context, options : StreamOptions? = nil, abort : AbortHandle? = nil) : MessageStream
+       provider = provider(model.provider)
+-      auth_result = Auth.resolve(model.provider, provider.auth, @store, @ctx)
++      options ||= StreamOptions.new
++      overrides = options.api_key.presence.try { |key| Auth::AuthOverrides.new(api_key: key) }
++      auth_result = Auth.resolve(model.provider, provider.auth, @store, @ctx, overrides)
+       normalized = Transform.normalize(context, model)
+-      provider.stream.call(model, normalized, options || StreamOptions.new, auth_result, abort)
++      provider.stream.call(model, normalized, options, auth_result, abort)
+     end
+ 
+     def chat(model : Model, context : Context, options : StreamOptions? = nil, abort : AbortHandle? = nil) : AssistantMessage
+diff --git a/src/llm-ai/providers/scripted_faux.cr b/src/llm-ai/providers/scripted_faux.cr
+new file mode 100644
+index 0000000..bf94a44
+--- /dev/null
++++ b/src/llm-ai/providers/scripted_faux.cr
+@@ -0,0 +1,330 @@
++# src/llm-ai/providers/scripted_faux.cr
++module LLM::AI::FauxProvider
++  DEFAULT_API      = "faux"
++  DEFAULT_BASE_URL = "http://localhost:0"
++  DEFAULT_COST     = ModelCost.new(0.0, 0.0, 0.0, 0.0)
++  DEFAULT_USAGE    = Usage.new(0, 0, 0, 0, 0, UsageCost.new(0.0, 0.0, 0.0, 0.0, 0.0))
++
++  alias ResponseFactory = Proc(Context, StreamOptions, Scripted::State, Model, AssistantMessage)
++  alias ResponseStep = AssistantMessage | ResponseFactory
++
++  record ModelDefinition,
++    id : String,
++    name : String? = nil,
++    reasoning : Bool = false,
++    input : Array(InputKind) = [InputKind::Text, InputKind::Image],
++    cost : ModelCost = DEFAULT_COST,
++    context_window : Int32 = 128_000,
++    max_tokens : Int32 = 16_384
++
++  DEFAULT_MODELS = [ModelDefinition.new("faux-1", "Faux Model")]
++
++  def self.scripted(
++    provider : String = "faux",
++    models : Array(ModelDefinition) = DEFAULT_MODELS,
++    tokens_per_second : Float64? = nil,
++    token_size : Range(Int32, Int32) = 3..5,
++  ) : Scripted
++    Scripted.new(provider, models, tokens_per_second, token_size)
++  end
++
++  def self.text(text : String) : TextContent
++    TextContent.new(text)
++  end
++
++  def self.thinking(thinking : String) : ThinkingContent
++    ThinkingContent.new(thinking)
++  end
++
++  def self.tool_call(name : String, arguments, id : String? = nil) : ToolCall
++    ToolCall.new(id || random_id("tool"), name, JSON.parse(arguments.to_json))
++  end
++
++  def self.assistant_message(
++    content : String | ContentBlock | Array(ContentBlock),
++    stop_reason : StopReason = StopReason::Stop,
++    error_message : String? = nil,
++    response_id : String? = nil,
++    timestamp : Time = Time.utc,
++  ) : AssistantMessage
++    blocks = case content
++             in String              then [text(content).as(ContentBlock)]
++             in ContentBlock        then [content]
++             in Array(ContentBlock) then content
++             end
++    AssistantMessage.new(
++      blocks, "faux", DEFAULT_MODELS.first.id, timestamp,
++      api: DEFAULT_API, response_id: response_id, usage: DEFAULT_USAGE,
++      stop_reason: stop_reason, error_message: error_message,
++    )
++  end
++
++  def self.random_id(prefix : String) : String
++    "#{prefix}:#{Time.utc.to_unix_ms}:#{Random::Secure.hex(6)}"
++  end
++
++  class Scripted
++    class State
++      property call_count : Int32 = 0
++    end
++
++    getter provider : Provider
++    getter models : Array(Model)
++    getter state : State = State.new
++    @pending = [] of ResponseStep
++    @prompt_cache = {} of String => Array(String)
++    @min_token_size : Int32
++    @max_token_size : Int32
++
++    def initialize(@provider_id : String, definitions : Array(ModelDefinition), @tokens_per_second : Float64?, token_size : Range(Int32, Int32))
++      @min_token_size = Math.max(1, Math.min(token_size.begin, token_size.end))
++      @max_token_size = Math.max(@min_token_size, token_size.end)
++      @models = definitions.map do |definition|
++        Model.new(
++          definition.id, definition.name || definition.id, @provider_id, DEFAULT_BASE_URL,
++          ApiKind::OpenaiCompletions, definition.input, definition.context_window,
++          definition.max_tokens, definition.reasoning, definition.cost,
++        )
++      end
++      @provider = Provider.new(
++        @provider_id, "Faux", DEFAULT_BASE_URL, {} of String => String,
++        Auth::ProviderAuth.new, @models,
++        ->(model : Model, context : Context, options : StreamOptions, _auth : Auth::AuthResult, abort : AbortHandle?) { stream(model, context, options, abort) },
++      )
++    end
++
++    def model : Model
++      @models.first
++    end
++
++    def model(id : String) : Model?
++      @models.find { |candidate| candidate.id == id }
++    end
++
++    def responses=(responses : Array(ResponseStep)) : Nil
++      @pending = responses.dup
++    end
++
++    def append_responses(responses : Array(ResponseStep)) : Nil
++      @pending.concat(responses)
++    end
++
++    def append_response(&factory : Context, StreamOptions, State, Model -> AssistantMessage) : Nil
++      @pending << factory
++    end
++
++    def pending_response_count : Int32
++      @pending.size
++    end
++
++    def stream(model : Model, context : Context, options : StreamOptions, abort : AbortHandle?) : MessageStream
++      stream = MessageStream.new(abort)
++      step = @pending.shift?
++      @state.call_count += 1
++      spawn do
++        options.hooks.try(&.on_response).try &.call(200, HTTP::Headers.new)
++        if step
++          stream_with_deltas(stream, resolve(step, context, options, model), abort)
++        else
++          message = with_usage(error_message("No more faux responses queued", model), context, options)
++          stream.finish(StreamEvent::Error.new(:error, message))
++        end
++      rescue ex
++        stream.finish(StreamEvent::Error.new(:error, error_message(ex.message || ex.class.name, model)))
++      end
++      stream
++    end
++
++    private def resolve(step : ResponseStep, context : Context, options : StreamOptions, model : Model) : AssistantMessage
++      message = step.is_a?(AssistantMessage) ? step : step.call(context, options, @state, model)
++      cloned = message.copy_with(api: DEFAULT_API, provider: @provider_id, model: model.id, usage: message.usage || DEFAULT_USAGE)
++      with_usage(cloned, context, options)
++    end
++
++    private def error_message(text : String, model : Model) : AssistantMessage
++      AssistantMessage.new(
++        [] of ContentBlock, @provider_id, model.id, Time.utc,
++        api: DEFAULT_API, usage: DEFAULT_USAGE, stop_reason: StopReason::Error, error_message: text,
++      )
++    end
++
++    private def stream_with_deltas(stream : MessageStream, message : AssistantMessage, abort : AbortHandle?) : Nil
++      blocks = [] of ContentBlock
++      partial = -> { message.copy_with(content: blocks.dup, stop_reason: StopReason::Pending) }
++      return abort_stream(stream, partial.call) if abort.try(&.aborted?)
++      stream.push(StreamEvent::Start.new(partial.call))
++      message.content.each_with_index do |block, index|
++        return abort_stream(stream, partial.call) if abort.try(&.aborted?)
++        case block
++        when ThinkingContent
++          blocks << ThinkingContent.new("")
++          stream.push(StreamEvent::ThinkingStart.new(index, partial.call))
++          chunks(block.thinking).each do |chunk|
++            schedule(chunk)
++            return abort_stream(stream, partial.call) if abort.try(&.aborted?)
++            blocks[index] = ThinkingContent.new(blocks[index].as(ThinkingContent).thinking + chunk)
++            stream.push(StreamEvent::ThinkingDelta.new(index, chunk, partial.call))
++          end
++          stream.push(StreamEvent::ThinkingEnd.new(index, partial.call))
++        when TextContent
++          blocks << TextContent.new("")
++          stream.push(StreamEvent::TextStart.new(index, partial.call))
++          chunks(block.text).each do |chunk|
++            schedule(chunk)
++            return abort_stream(stream, partial.call) if abort.try(&.aborted?)
++            blocks[index] = TextContent.new(blocks[index].as(TextContent).text + chunk)
++            stream.push(StreamEvent::TextDelta.new(index, chunk, partial.call))
++          end
++          stream.push(StreamEvent::TextEnd.new(index, partial.call))
++        when ToolCall
++          blocks << ToolCall.new(block.id, block.name, JSON::Any.new({} of String => JSON::Any))
++          stream.push(StreamEvent::ToolCallStart.new(index, partial.call))
++          chunks(block.arguments.to_json).each do |chunk|
++            schedule(chunk)
++            return abort_stream(stream, partial.call) if abort.try(&.aborted?)
++            stream.push(StreamEvent::ToolCallDelta.new(index, partial.call))
++          end
++          blocks[index] = block
++          stream.push(StreamEvent::ToolCallEnd.new(index, partial.call))
++        end
++      end
++      case message.stop_reason
++      when .pending?
++        raise "Faux response ended without a stop reason"
++      when .error?
++        stream.finish(StreamEvent::Error.new(:error, message))
++      when .aborted?
++        stream.finish(StreamEvent::Error.new(:aborted, message))
++      else
++        stream.finish(StreamEvent::Done.new(message.stop_reason, message))
++      end
++    end
++
++    private def abort_stream(stream : MessageStream, partial : AssistantMessage) : Nil
++      aborted = partial.copy_with(stop_reason: StopReason::Aborted, error_message: "Request was aborted", timestamp: Time.utc)
++      stream.finish(StreamEvent::Error.new(:aborted, aborted))
++    end
++
++    private def chunks(text : String) : Array(String)
++      chars = text.chars
++      pieces = [] of String
++      index = 0
++      while index < chars.size
++        size = Math.max(1, Random.rand(@min_token_size..@max_token_size) * 4)
++        pieces << chars[index, size].join
++        index += size
++      end
++      pieces.empty? ? [""] : pieces
++    end
++
++    private def schedule(chunk : String) : Nil
++      rate = @tokens_per_second
++      if rate && rate > 0
++        sleep (estimate_tokens(chunk) / rate).seconds
++      else
++        Fiber.yield
++      end
++    end
++
++    private def estimate_tokens(text : String) : Int32
++      (text.size / 4).ceil.to_i
++    end
++
++    private def with_usage(message : AssistantMessage, context : Context, options : StreamOptions) : AssistantMessage
++      prompt = prompt_texts(context)
++      prompt_length = joined_length(prompt, prompt.size)
++      prompt_tokens = (prompt_length / 4).ceil.to_i
++      output = estimate_tokens(assistant_text(message.content))
++      input = prompt_tokens
++      cache_read = 0
++      cache_write = 0
++      if (session = options.session_id) && options.cache_retention != :none
++        if previous = @prompt_cache[session]?
++          cached = common_prefix_length(previous, prompt)
++          cache_read = (cached / 4).ceil.to_i
++          cache_write = ((prompt_length - cached) / 4).ceil.to_i
++          input = Math.max(0, prompt_tokens - cache_read)
++        else
++          cache_write = prompt_tokens
++        end
++        @prompt_cache[session] = prompt
++      end
++      usage = Usage.new(input, output, cache_read, cache_write, input + output + cache_read + cache_write, DEFAULT_USAGE.cost)
++      message.copy_with(usage: usage)
++    end
++
++    private def prompt_texts(context : Context) : Array(String)
++      messages = context.messages
++      if initial = Transcript.create_initial_system_message(context.system_prompt, context.tools)
++        messages = [initial.as(Message)] + messages
++      end
++      messages.map { |message| "#{role(message)}:#{message_text(message)}" }
++    end
++
++    private def role(message : Message) : String
++      case message
++      when SystemMessage     then "system"
++      when UserMessage       then "user"
++      when AssistantMessage  then "assistant"
++      when ToolResultMessage then "toolResult"
++      else                        message.class.name
++      end
++    end
++
++    private def message_text(message : Message) : String
++      case message
++      when SystemMessage
++        parts = [Transcript.system_text(message)]
++        message.tools_removed.try &.each { |tool| parts << "tool-:#{tool.to_json}" }
++        message.tools_added.try &.each { |tool| parts << "tool+:#{tool.to_json}" }
++        parts.reject(&.empty?).join("\n")
++      when UserMessage
++        content = message.content
++        content.is_a?(String) ? content : blocks_text(content)
++      when AssistantMessage
++        assistant_text(message.content)
++      when ToolResultMessage
++        ([message.tool_name] + message.content.map { |block| blocks_text([block]) }).join("\n")
++      else
++        ""
++      end
++    end
++
++    private def blocks_text(content : Array(ContentBlock)) : String
++      content.compact_map do |block|
++        case block
++        when TextContent  then block.text
++        when ImageContent then "[image:#{block.mime_type}:#{block.data.size}]"
++        end
++      end.join("\n")
++    end
++
++    private def assistant_text(content : Array(ContentBlock)) : String
++      content.compact_map do |block|
++        case block
++        when TextContent     then block.text
++        when ThinkingContent then block.thinking
++        when ToolCall        then "#{block.name}:#{block.arguments.to_json}"
++        end
++      end.join("\n")
++    end
++
++    private def joined_length(messages : Array(String), count : Int32) : Int32
++      length = count > 0 ? (count - 1) * 2 : 0
++      count.times { |index| length += messages[index].size }
++      length
++    end
++
++    private def common_prefix_length(previous : Array(String), current : Array(String)) : Int32
++      index = 0
++      while index < previous.size && index < current.size && previous[index] == current[index]
++        index += 1
++      end
++      rest = ->(messages : Array(String)) do
++        index == messages.size ? "" : (index > 0 ? "\n\n" : "") + messages[index..].join("\n\n")
++      end
++      shared = rest.call(previous).each_char.zip(rest.call(current).each_char).take_while { |(left, right)| left == right }.size
++      joined_length(previous, index) + shared
++    end
++  end
++end
+diff --git a/src/llm-ai/transcript.cr b/src/llm-ai/transcript.cr
+new file mode 100644
+index 0000000..1da15c2
+--- /dev/null
++++ b/src/llm-ai/transcript.cr
+@@ -0,0 +1,131 @@
++# src/llm-ai/transcript.cr
++module LLM::AI
++  enum ToolSupport
++    None
++    Additions
++    Changes
++  end
++
++  record ToolStateChanges, tools_added : Array(Tool), tools_removed : Array(ToolReference)
++
++  record TranscriptTools, request_tools : Array(Tool), folded_system_messages : Int32
++
++  module Transcript
++    EPOCH = Time.unix_ms(0)
++
++    def self.create_initial_system_message(system_prompt : String?, tools : Array(Tool)?) : SystemMessage?
++      has_prompt = !system_prompt.nil? && !system_prompt.empty?
++      has_tools = !tools.nil? && !tools.empty?
++      return unless has_prompt || has_tools
++      SystemMessage.new(system_prompt || "", EPOCH, tools_added: has_tools ? tools : nil)
++    end
++
++    def self.initial_system_message(messages : Array(T)) : SystemMessage? forall T
++      messages.first?.as?(SystemMessage)
++    end
++
++    def self.current_tools(messages : Array(T)) : Array(Tool) forall T
++      tools = {} of String => Tool
++      messages.each do |message|
++        next unless message.is_a?(SystemMessage)
++        message.tools_removed.try &.each { |tool| tools.delete(tool.name) }
++        message.tools_added.try &.each { |tool| tools[tool.name] = tool }
++      end
++      tools.values
++    end
++
++    def self.current_system_message(messages : Array(T)) : SystemMessage? forall T
++      content = [] of String
++      sections = {} of String => String
++      timestamp = nil
++      messages.each do |message|
++        next unless message.is_a?(SystemMessage)
++        timestamp ||= message.timestamp
++        text = content_text(message.content)
++        content << text unless text.empty?
++        message.sections.try &.each do |name, value|
++          if value
++            sections[name] = value
++          else
++            sections.delete(name)
++          end
++        end
++      end
++      tools = current_tools(messages)
++      return if timestamp.nil? && tools.empty?
++      SystemMessage.new(
++        content.join("\n\n"),
++        timestamp || EPOCH,
++        sections.empty? ? nil : sections.transform_values { |value| value.as(String?) },
++        tools.empty? ? nil : tools,
++      )
++    end
++
++    def self.current_system_prompt(messages : Array(T)) : String forall T
++      current_system_message(messages).try { |message| system_text(message) } || ""
++    end
++
++    def self.tool_state_changes(previous : Array(Tool), current : Array(Tool)) : ToolStateChanges
++      previous_by_name = previous.to_h { |tool| {tool.name, tool} }
++      current_by_name = current.to_h { |tool| {tool.name, tool} }
++      added = current.select { |tool| previous_by_name[tool.name]? != tool }
++      removed = previous.reject { |tool| current_by_name[tool.name]? == tool }.map { |tool| ToolReference.new(tool.name) }
++      ToolStateChanges.new(added, removed)
++    end
++
++    def self.tool_support(model : Model) : ToolSupport
++      compat = model.compat
++      return ToolSupport::None unless compat.supports_mid_convo_system_messages
++      return ToolSupport::Changes if compat.supports_mid_convo_tool_changes
++      return ToolSupport::Additions if compat.supports_mid_convo_tool_additions
++      ToolSupport::None
++    end
++
++    def self.resolve_tools(system_messages : Array(SystemMessage), leading : Int32, support : ToolSupport) : TranscriptTools
++      folded = case support
++               in ToolSupport::None      then system_messages.size
++               in ToolSupport::Changes   then leading
++               in ToolSupport::Additions then Math.max(leading, last_non_additive_change(system_messages) + 1)
++               end
++      folded = Math.min(folded, system_messages.size)
++      TranscriptTools.new(current_tools(system_messages[0, folded]), folded)
++    end
++
++    def self.system_text(message : SystemMessage) : String
++      parts = [content_text(message.content)]
++      message.sections.try &.each_value { |value| parts << value if value }
++      parts.reject(&.empty?).join("\n\n")
++    end
++
++    def self.system_update_text(message : SystemMessage) : String
++      parts = [] of String
++      text = content_text(message.content)
++      parts << text unless text.empty?
++      message.sections.try &.each do |name, value|
++        parts << (value ? "Updated system prompt section \"#{name}\":\n\n#{value}" : "Removed system prompt section \"#{name}\".")
++      end
++      parts.join("\n\n")
++    end
++
++    def self.content_text(content : String) : String
++      content
++    end
++
++    def self.content_text(content : Array(TextContent)) : String
++      content.join("\n", &.text)
++    end
++
++    private def self.last_non_additive_change(system_messages : Array(SystemMessage)) : Int32
++      declared = Set(String).new
++      last = -1
++      system_messages.each_with_index do |message, index|
++        last = index if message.tools_removed.try(&.empty?) == false
++        message.tools_added.try &.each do |tool|
++          last = index if declared.includes?(tool.name)
++          declared << tool.name
++        end
++      end
++      last
++    end
++  end
++end
+diff --git a/src/llm-ai/types.cr b/src/llm-ai/types.cr
+index 1bbb170..d351e55 100644
+--- a/src/llm-ai/types.cr
++++ b/src/llm-ai/types.cr
+@@ -241,6 +241,16 @@ module LLM::AI
+         timestamp == other.timestamp
+     end
+ 
++    def copy_with(
++      content : String | Array(TextContent) = @content,
++      timestamp : Time = @timestamp,
++      sections : Hash(String, String?)? = @sections,
++      tools_added : Array(Tool)? = @tools_added,
++      tools_removed : Array(ToolReference)? = @tools_removed,
++    ) : SystemMessage
++      SystemMessage.new(content, timestamp, sections, tools_added, tools_removed)
++    end
++
+     protected def on_to_json(json : JSON::Builder)
+       json.field "role", "system"
+     end
+@@ -319,6 +329,32 @@ module LLM::AI
+         duration_ms == other.duration_ms && reasoning_details == other.reasoning_details
+     end
+ 
++    def copy_with(
++      content : Array(ContentBlock) = @content,
++      provider : String = @provider,
++      model : String = @model,
++      timestamp : Time = @timestamp,
++      api : String? = @api,
++      response_model : String? = @response_model,
++      response_id : String? = @response_id,
++      provider_thinking_level : String? = @provider_thinking_level,
++      thinking_level : String? = @thinking_level,
++      usage : Usage? = @usage,
++      stop_reason : StopReason = @stop_reason,
++      deferred : Bool = @deferred,
++      error_message : String? = @error_message,
++      raw_stop_reason : String? = @raw_stop_reason,
++      end_turn : Bool = @end_turn,
++      duration_ms : Int64? = @duration_ms,
++      reasoning_details : JSON::Any? = @reasoning_details,
++    ) : AssistantMessage
++      AssistantMessage.new(
++        content, provider, model, timestamp, api, response_model, response_id,
++        provider_thinking_level, thinking_level, usage, stop_reason, deferred,
++        error_message, raw_stop_reason, end_turn, duration_ms, reasoning_details,
++      )
++    end
++
+     protected def on_to_json(json : JSON::Builder)
+       json.field "role", "assistant"
+     end
+@@ -334,6 +370,8 @@ module LLM::AI
+     @[JSON::Field(converter: LLM::AI::EpochMillis)]
+     getter timestamp : Time
+     getter duration_ms : Int64?
++    getter details : JSON::Any?
++    getter usage : Usage?
+ 
+     def initialize(
+       @tool_call_id : String,
+@@ -342,13 +380,29 @@ module LLM::AI
+       @timestamp : Time,
+       @is_error : Bool = false,
+       @duration_ms : Int64? = nil,
++      @details : JSON::Any? = nil,
++      @usage : Usage? = nil,
+     )
+     end
+ 
+     def ==(other : ToolResultMessage) : Bool
+       tool_call_id == other.tool_call_id && tool_name == other.tool_name &&
+         content == other.content && is_error == other.is_error &&
+-        timestamp == other.timestamp && duration_ms == other.duration_ms
++        timestamp == other.timestamp && duration_ms == other.duration_ms &&
++        details == other.details && usage == other.usage
++    end
++
++    def copy_with(
++      tool_call_id : String = @tool_call_id,
++      tool_name : String = @tool_name,
++      content : Array(ContentBlock) = @content,
++      timestamp : Time = @timestamp,
++      is_error : Bool = @is_error,
++      duration_ms : Int64? = @duration_ms,
++      details : JSON::Any? = @details,
++      usage : Usage? = @usage,
++    ) : ToolResultMessage
++      ToolResultMessage.new(tool_call_id, tool_name, content, timestamp, is_error, duration_ms, details, usage)
+     end
+ 
+     protected def on_to_json(json : JSON::Builder)
+@@ -758,11 +812,14 @@ module LLM::AI
+     getter on_response : Proc(Int32, HTTP::Headers, Nil)?
+     @[JSON::Field(ignore: true)]
+     getter on_event : Proc(StreamEvent, Nil)?
++    @[JSON::Field(ignore: true)]
++    getter on_provider_event : Proc(JSON::Any, Model, Nil)?
+ 
+     def initialize(
+       @on_payload : Proc(JSON::Any, Model, JSON::Any)? = nil,
+       @on_response : Proc(Int32, HTTP::Headers, Nil)? = nil,
+       @on_event : Proc(StreamEvent, Nil)? = nil,
++      @on_provider_event : Proc(JSON::Any, Model, Nil)? = nil,
+     )
+     end
+   end
+@@ -786,6 +843,12 @@ module LLM::AI
+     @[JSON::Field(ignore: true)]
+     getter hooks : StreamHooks?
+     getter sampling_params : Hash(String, JSON::Any)?
++    @[JSON::Field(ignore: true)]
++    getter api_key : String?
++    getter session_id : String?
++    getter thinking_budgets : Hash(String, Int32)?
++    getter max_retry_delay_ms : Int32?
++    getter identity : ClientIdentity?
+ 
+     def initialize(
+       @max_tokens : Int32? = nil,
+@@ -802,7 +865,40 @@ module LLM::AI
+       @user_id : String? = nil,
+       @hooks : StreamHooks? = nil,
+       @sampling_params : Hash(String, JSON::Any)? = nil,
++      @api_key : String? = nil,
++      @session_id : String? = nil,
++      @thinking_budgets : Hash(String, Int32)? = nil,
++      @max_retry_delay_ms : Int32? = nil,
++      @identity : ClientIdentity? = nil,
+     )
+     end
++
++    def copy_with(
++      max_tokens : Int32? = @max_tokens,
++      temperature : Float64? = @temperature,
++      thinking_level : String? = @thinking_level,
++      thinking_enabled : Bool? = @thinking_enabled,
++      effort : String? = @effort,
++      thinking_display : String? = @thinking_display,
++      tool_choice : String? = @tool_choice,
++      headers : Hash(String, String)? = @headers,
++      cache_retention : Symbol? = @cache_retention,
++      max_retries : Int32 = @max_retries,
++      timeout_ms : Int32? = @timeout_ms,
++      user_id : String? = @user_id,
++      hooks : StreamHooks? = @hooks,
++      sampling_params : Hash(String, JSON::Any)? = @sampling_params,
++      api_key : String? = @api_key,
++      session_id : String? = @session_id,
++      thinking_budgets : Hash(String, Int32)? = @thinking_budgets,
++      max_retry_delay_ms : Int32? = @max_retry_delay_ms,
++      identity : ClientIdentity? = @identity,
++    ) : StreamOptions
++      StreamOptions.new(
++        max_tokens, temperature, thinking_level, thinking_enabled, effort, thinking_display,
++        tool_choice, headers, cache_retention, max_retries, timeout_ms, user_id, hooks,
++        sampling_params, api_key, session_id, thinking_budgets, max_retry_delay_ms, identity,
++      )
++    end
+   end
+ end
+diff --git a/src/llm-ai/validation.cr b/src/llm-ai/validation.cr
+new file mode 100644
+index 0000000..494d8a9
+--- /dev/null
++++ b/src/llm-ai/validation.cr
+@@ -0,0 +1,218 @@
++# src/llm-ai/validation.cr
++require "json"
++require "typebox"
++
++module LLM::AI
++  class ToolValidationError < Exception
++  end
++
++  module Validation
++    JSON_TYPES = {"number", "integer", "boolean", "string", "null", "array", "object"}
++
++    def self.validate_tool_call(tools : Array(Tool), tool_call : ToolCall) : JSON::Any
++      tool = tools.find { |candidate| candidate.name == tool_call.name }
++      raise ToolValidationError.new("Tool \"#{tool_call.name}\" not found") unless tool
++      validate_tool_arguments(tool, tool_call)
++    end
++
++    def self.validate_tool_arguments(tool : Tool, tool_call : ToolCall) : JSON::Any
++      validate_arguments(tool.parameters, tool_call)
++    end
++
++    def self.validate_arguments(schema : JSON::Any, tool_call : ToolCall) : JSON::Any
++      if parse_error = tool_call.arguments_error
++        raise ToolValidationError.new("Invalid arguments for tool \"#{tool_call.name}\": #{parse_error}")
++      end
++      args = deep_copy(tool_call.arguments)
++      normalize_optional_nulls(args, schema)
++      args = coerce(args, schema)
++      return args if check?(schema, args)
++      errors = TypeBox::Value.errors(schema, args).map { |error| "  - #{path(error)}: #{error.message}" }
++      details = errors.empty? ? "Unknown validation error" : errors.join("\n")
++      raise ToolValidationError.new(
++        "Validation failed for tool \"#{tool_call.name}\":\n#{details}\n\nReceived arguments:\n#{tool_call.arguments.to_pretty_json}"
++      )
++    end
++
++    def self.deep_copy(value : JSON::Any) : JSON::Any
++      case raw = value.raw
++      when Array
++        JSON::Any.new(raw.map { |item| deep_copy(item) })
++      when Hash
++        JSON::Any.new(raw.transform_values { |item| deep_copy(item) })
++      else
++        value
++      end
++    end
++
++    private def self.check?(schema : JSON::Any, value : JSON::Any?) : Bool
++      TypeBox::Value.check(schema, value)
++    rescue
++      false
++    end
++
++    private def self.path(error : TypeBox::ValidationError) : String
++      base = error.instance_path.lchop('/').gsub('/', '.')
++      if error.keyword == "required" && (property = error.params["requiredProperties"]?.try(&.as_a?).try(&.first?).try(&.as_s?))
++        return base.empty? ? property : "#{base}.#{property}"
++      end
++      base.empty? ? "root" : base
++    end
++
++    private def self.schema_types(schema : JSON::Any) : Array(String)
++      case type = schema["type"]?.try(&.raw)
++      when String then [type]
++      when Array  then type.compact_map(&.as_s?)
++      else             [] of String
++      end
++    end
++
++    private def self.matches_type?(value : JSON::Any, type : String) : Bool
++      case raw = value.raw
++      when Int64   then type == "number" || type == "integer"
++      when Float64 then type == "number" || (type == "integer" && raw.finite? && raw == raw.trunc)
++      when Bool    then type == "boolean"
++      when String  then type == "string"
++      when Nil     then type == "null"
++      when Array   then type == "array"
++      when Hash    then type == "object"
++      else              false
++      end
++    end
++
++    private def self.number(value : Float64) : JSON::Any
++      value == value.trunc && value.abs < 2.0 ** 53 ? JSON::Any.new(value.to_i64) : JSON::Any.new(value)
++    end
++
++    private def self.text(value : JSON::Any) : String
++      case raw = value.raw
++      when Float64 then raw == raw.trunc && raw.abs < 2.0 ** 53 ? raw.to_i64.to_s : raw.to_s
++      else              raw.to_s
++      end
++    end
++
++    private def self.coerce_primitive(value : JSON::Any, type : String) : JSON::Any?
++      raw = value.raw
++      case type
++      when "number"
++        case raw
++        when Nil    then JSON::Any.new(0_i64)
++        when Bool   then JSON::Any.new(raw ? 1_i64 : 0_i64)
++        when String then raw.strip.empty? ? nil : raw.to_f?.try { |parsed| number(parsed) if parsed.finite? }
++        end
++      when "integer"
++        case raw
++        when Nil    then JSON::Any.new(0_i64)
++        when Bool   then JSON::Any.new(raw ? 1_i64 : 0_i64)
++        when String then raw.strip.empty? ? nil : raw.to_f?.try { |parsed| JSON::Any.new(parsed.to_i64) if parsed.finite? && parsed == parsed.trunc }
++        end
++      when "boolean"
++        case raw
++        when Nil            then JSON::Any.new(false)
++        when String         then raw == "true" ? JSON::Any.new(true) : (raw == "false" ? JSON::Any.new(false) : nil)
++        when Int64, Float64 then raw == 1 ? JSON::Any.new(true) : (raw == 0 ? JSON::Any.new(false) : nil)
++        end
++      when "string"
++        case raw
++        when Nil                  then JSON::Any.new("")
++        when Int64, Float64, Bool then JSON::Any.new(text(value))
++        end
++      when "null"
++        JSON::Any.new(nil) if raw == "" || raw == 0 || raw == false
++      end
++    end
++
++    private def self.coerce(value : JSON::Any, schema : JSON::Any) : JSON::Any
++      return value unless schema.as_h?
++      result = value
++      schema["allOf"]?.try(&.as_a?).try &.each { |nested| result = coerce(result, nested) }
++      schema["anyOf"]?.try(&.as_a?).try { |schemas| result = coerce_union(result, schemas) }
++      schema["oneOf"]?.try(&.as_a?).try { |schemas| result = coerce_union(result, schemas) }
++      types = schema_types(schema).select { |type| JSON_TYPES.includes?(type) }
++      unless types.empty? || (types.size > 1 && types.any? { |type| matches_type?(result, type) })
++        types.each do |type|
++          if candidate = coerce_primitive(result, type)
++            result = candidate
++            break
++          end
++        end
++      end
++      if types.includes?("object") && (hash = result.as_h?)
++        coerce_object(hash, schema)
++      end
++      if types.includes?("array") && (array = result.as_a?)
++        coerce_array(array, schema)
++      end
++      result
++    end
++
++    private def self.coerce_object(value : Hash(String, JSON::Any), schema : JSON::Any) : Nil
++      properties = schema["properties"]?.try(&.as_h?)
++      properties.try &.each do |key, property|
++        if current = value[key]?
++          value[key] = coerce(current, property)
++        end
++      end
++      additional = schema["additionalProperties"]?
++      return unless additional && additional.as_h?
++      value.each do |key, item|
++        next if properties.try(&.has_key?(key))
++        value[key] = coerce(item, additional)
++      end
++    end
++
++    private def self.coerce_array(value : Array(JSON::Any), schema : JSON::Any) : Nil
++      items = schema["items"]?
++      return unless items
++      if tuple = items.as_a?
++        value.each_index do |index|
++          item_schema = tuple[index]?
++          value[index] = coerce(value[index], item_schema) if item_schema
++        end
++      elsif items.as_h?
++        value.each_index { |index| value[index] = coerce(value[index], items) }
++      end
++    end
++
++    private def self.coerce_union(value : JSON::Any, schemas : Array(JSON::Any)) : JSON::Any
++      return value if schemas.any? { |schema| check?(schema, value) }
++      schemas.each do |schema|
++        coerced = coerce(deep_copy(value), schema)
++        return coerced if check?(schema, coerced)
++      end
++      value
++    end
++
++    private def self.normalize_optional_nulls(value : JSON::Any, schema : JSON::Any) : Nil
++      return unless schema.as_h?
++      if array = value.as_a?
++        items = schema["items"]?
++        if tuple = items.try(&.as_a?)
++          array.each_with_index { |item, index| tuple[index]?.try { |item_schema| normalize_optional_nulls(item, item_schema) } }
++        elsif items
++          array.each { |item| normalize_optional_nulls(item, items) }
++        end
++        return
++      end
++      object = value.as_h?
++      properties = schema["properties"]?.try(&.as_h?)
++      return unless object && properties
++      required = schema["required"]?.try(&.as_a?).try(&.compact_map(&.as_s?)) || [] of String
++      properties.each do |key, property|
++        next unless current = object[key]?
++        reference = property.as_h?.try(&.["$ref"]?).try(&.as_s?)
++        if current.raw.nil? && !required.includes?(key) && reference.nil? && !null_allowed?(property)
++          object.delete(key)
++        else
++          normalize_optional_nulls(current, property)
++        end
++      end
++    end
++
++    private def self.null_allowed?(schema : JSON::Any) : Bool
++      TypeBox::Value.check(schema, JSON::Any.new(nil))
++    rescue
++      true
++    end
++  end
++end
+-- 
+2.43.0
+

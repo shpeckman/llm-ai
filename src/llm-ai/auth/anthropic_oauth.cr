@@ -5,7 +5,7 @@ require "../http"
 module LLM::AI::Auth
   struct AuthHosts
     getter authorize_url : String
-    getter token_url     : String
+    getter token_url : String
 
     def initialize(@authorize_url : String = "https://claude.ai/oauth/authorize", @token_url : String = "https://platform.claude.com/v1/oauth/token")
     end
@@ -27,7 +27,7 @@ module LLM::AI::Auth
         input = interaction.prompt(:manual_code, "Paste the authorization code:")
         exchange_manual(hosts.token_url, input, verifier, COPY_CODE_REDIRECT)
       else
-        host   = ENV["PI_OAUTH_CALLBACK_HOST"]? || "127.0.0.1"
+        host = ENV["PI_OAUTH_CALLBACK_HOST"]? || "127.0.0.1"
         server = OAuthCallbackServer.new(host, CALLBACK_PATH, verifier, ->(_code : String) : String? { nil })
         server.start
         begin
@@ -42,7 +42,7 @@ module LLM::AI::Auth
 
     def self.refresh(refresh_token : String, hosts : AuthHosts? = nil) : OAuthCredential
       hosts = hosts || AuthHosts.new
-      body  = {"grant_type" => "refresh_token", "client_id" => CLIENT_ID, "refresh_token" => refresh_token}.to_json
+      body = {"grant_type" => "refresh_token", "client_id" => CLIENT_ID, "refresh_token" => refresh_token}.to_json
       post_token(hosts.token_url, body)
     rescue ex : Http::Error
       if ex.status == 400 || ex.status == 401 || ex.status == 403 || ex.body.includes?("invalid_grant")
@@ -145,9 +145,9 @@ module LLM::AI::Auth
     end
 
     private def self.parse_token(body : String, token_url : String) : OAuthCredential
-      json       = JSON.parse(body)
-      access     = json["access_token"]?.try(&.as_s)
-      refresh    = json["refresh_token"]?.try(&.as_s)
+      json = JSON.parse(body)
+      access = json["access_token"]?.try(&.as_s)
+      refresh = json["refresh_token"]?.try(&.as_s)
       expires_in = json["expires_in"]?.try(&.as_i)
       if access.nil? || refresh.nil? || expires_in.nil?
         raise Error.new("OAuth token response missing fields: #{token_url}")

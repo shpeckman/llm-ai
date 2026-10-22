@@ -51,7 +51,7 @@ private class PasteInteraction < LLM::AI::Auth::Interaction
 
   def prompt(kind : LLM::AI::Auth::PromptKind, message : String) : String
     params = URI.parse(@auth_urls.first.not_nil!.url).query_params
-    state  = params["state"].not_nil!
+    state = params["state"].not_nil!
     case @kind
     when :code_state
       "pasted-code##{state}"
@@ -86,9 +86,9 @@ describe LLM::AI::Auth::Anthropic do
     api = MockApi.new.serve(token_ok_body, 200, "application/json").start
     begin
       interaction = RecordingInteraction.new(prompt_results: ["code"])
-      result      = run_login(interaction, true, mock_hosts(api))
+      result = run_login(interaction, true, mock_hosts(api))
       result.receive.should be_a(LLM::AI::OAuthCredential)
-      url    = interaction.auth_urls.first.url
+      url = interaction.auth_urls.first.url
       params = URI.parse(url).query_params
       params["client_id"].should eq "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
       params["response_type"].should eq "code"
@@ -105,9 +105,9 @@ describe LLM::AI::Auth::Anthropic do
     api = MockApi.new.serve(token_ok_body, 200, "application/json").start
     begin
       interaction = RecordingInteraction.new(prompt_results: ["auth-code-123"])
-      result      = run_login(interaction, true, mock_hosts(api))
-      credential  = result.receive.should be_a(LLM::AI::OAuthCredential)
-      body        = JSON.parse(api.requests.first[2])
+      result = run_login(interaction, true, mock_hosts(api))
+      credential = result.receive.should be_a(LLM::AI::OAuthCredential)
+      body = JSON.parse(api.requests.first[2])
       body["grant_type"].should eq "authorization_code"
       body["code"].should eq "auth-code-123"
       body["code_verifier"].as_s.should_not be_empty
@@ -124,8 +124,8 @@ describe LLM::AI::Auth::Anthropic do
     api = MockApi.new.serve(token_ok_body, 200, "application/json").start
     begin
       interaction = RecordingInteraction.new(prompt_results: ["code#wrongstate"])
-      result      = run_login(interaction, true, mock_hosts(api))
-      error       = result.receive.should be_a(Exception)
+      result = run_login(interaction, true, mock_hosts(api))
+      error = result.receive.should be_a(Exception)
       (error.message || "").should contain "state"
       api.requests.should be_empty
     ensure
@@ -137,18 +137,18 @@ describe LLM::AI::Auth::Anthropic do
     api = MockApi.new.serve(token_ok_body, 200, "application/json").start
     begin
       interaction = BlockingInteraction.new
-      result      = run_login(interaction, false, mock_hosts(api))
-      url_event   = nil
+      result = run_login(interaction, false, mock_hosts(api))
+      url_event = nil
       200.times do
         url_event = interaction.auth_urls.first?
         break if url_event
         sleep 10.milliseconds
       end
-      url_event    = url_event.not_nil!
-      params       = URI.parse(url_event.url).query_params
-      callback     = "http://127.0.0.1:53692/callback?code=callback-code&state=#{params["state"]}"
+      url_event = url_event.not_nil!
+      params = URI.parse(url_event.url).query_params
+      callback = "http://127.0.0.1:53692/callback?code=callback-code&state=#{params["state"]}"
       callback_uri = URI.parse(callback)
-      client       = HTTP::Client.new("127.0.0.1", 53692)
+      client = HTTP::Client.new("127.0.0.1", 53692)
       begin
         response = client.get(callback_uri.request_target)
         response.status_code.should eq 200
@@ -167,7 +167,7 @@ describe LLM::AI::Auth::Anthropic do
     api = MockApi.new.serve(token_ok_body, 200, "application/json").start
     begin
       interaction = RecordingInteraction.new(prompt_results: ["code"])
-      result      = run_login(interaction, true, mock_hosts(api))
+      result = run_login(interaction, true, mock_hosts(api))
       result.receive.should be_a(LLM::AI::OAuthCredential)
       url = interaction.auth_urls.first.url
       URI.parse(url).query_params["redirect_uri"].should eq "https://platform.claude.com/oauth/code/callback"
@@ -194,9 +194,9 @@ describe LLM::AI::Auth::Anthropic do
     api = MockApi.new.serve(token_ok_body, 200, "application/json").start
     begin
       interaction = RecordingInteraction.new(prompt_results: ["manual-code-1"])
-      result      = run_login(interaction, false, mock_hosts(api))
-      credential  = result.receive.should be_a(LLM::AI::OAuthCredential)
-      body        = JSON.parse(api.requests.first[2])
+      result = run_login(interaction, false, mock_hosts(api))
+      credential = result.receive.should be_a(LLM::AI::OAuthCredential)
+      body = JSON.parse(api.requests.first[2])
       body["grant_type"].should eq "authorization_code"
       body["code"].should eq "manual-code-1"
       credential.access.should eq "access-1"
@@ -209,9 +209,9 @@ describe LLM::AI::Auth::Anthropic do
     api = MockApi.new.serve(token_ok_body, 200, "application/json").start
     begin
       interaction = PasteInteraction.new(:code_state)
-      result      = run_login(interaction, false, mock_hosts(api))
-      credential  = result.receive.should be_a(LLM::AI::OAuthCredential)
-      body        = JSON.parse(api.requests.first[2])
+      result = run_login(interaction, false, mock_hosts(api))
+      credential = result.receive.should be_a(LLM::AI::OAuthCredential)
+      body = JSON.parse(api.requests.first[2])
       body["code"].should eq "pasted-code"
       body["code_verifier"].as_s.should_not be_empty
       credential.access.should eq "access-1"
@@ -224,9 +224,9 @@ describe LLM::AI::Auth::Anthropic do
     api = MockApi.new.serve(token_ok_body, 200, "application/json").start
     begin
       interaction = PasteInteraction.new(:query)
-      result      = run_login(interaction, false, mock_hosts(api))
-      credential  = result.receive.should be_a(LLM::AI::OAuthCredential)
-      body        = JSON.parse(api.requests.first[2])
+      result = run_login(interaction, false, mock_hosts(api))
+      credential = result.receive.should be_a(LLM::AI::OAuthCredential)
+      body = JSON.parse(api.requests.first[2])
       body["code"].should eq "pasted-code"
       credential.access.should eq "access-1"
     ensure
@@ -238,9 +238,9 @@ describe LLM::AI::Auth::Anthropic do
     api = MockApi.new.serve(token_ok_body, 200, "application/json").start
     begin
       interaction = PasteInteraction.new(:redirect_url)
-      result      = run_login(interaction, false, mock_hosts(api))
-      credential  = result.receive.should be_a(LLM::AI::OAuthCredential)
-      body        = JSON.parse(api.requests.first[2])
+      result = run_login(interaction, false, mock_hosts(api))
+      credential = result.receive.should be_a(LLM::AI::OAuthCredential)
+      body = JSON.parse(api.requests.first[2])
       body["code"].should eq "pasted-code"
       body["redirect_uri"].as_s.should contain "/callback"
       credential.access.should eq "access-1"
@@ -253,8 +253,8 @@ describe LLM::AI::Auth::Anthropic do
     api = MockApi.new.serve(token_ok_body, 200, "application/json").start
     begin
       interaction = RecordingInteraction.new(prompt_results: ["pasted-code#wrong-state"])
-      result      = run_login(interaction, false, mock_hosts(api))
-      error       = result.receive.should be_a(Exception)
+      result = run_login(interaction, false, mock_hosts(api))
+      error = result.receive.should be_a(Exception)
       (error.message || "").should contain "state"
       api.requests.should be_empty
     ensure

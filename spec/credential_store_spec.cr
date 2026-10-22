@@ -61,8 +61,8 @@ describe LLM::AI::FileCredentialStore do
         spawn do
           store.modify("p") do |current|
             base = current.as(LLM::AI::OAuthCredential?) || oauth("r", "a", 0_i64)
-            ids  = base.extra["ids"]?.try(&.as_a) || [] of JSON::Any
-            ids  = ids + [JSON::Any.new(i)]
+            ids = base.extra["ids"]?.try(&.as_a) || [] of JSON::Any
+            ids = ids + [JSON::Any.new(i)]
             oauth("r", "a", 0_i64, base.extra.merge({"ids" => JSON::Any.new(ids)}))
           end
           done.send nil

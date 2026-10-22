@@ -59,8 +59,8 @@ describe LLM::AI::Models do
   end
 
   it "builds payloads for catalog models" do
-    models         = LLM::AI::Models.build
-    context        = LLM::AI::Context.new([LLM::AI::UserMessage.new([LLM::AI::TextContent.new("hi")] of LLM::AI::ContentBlock, Time.utc)] of LLM::AI::Message)
+    models = LLM::AI::Models.build
+    context = LLM::AI::Context.new([LLM::AI::UserMessage.new([LLM::AI::TextContent.new("hi")] of LLM::AI::ContentBlock, Time.utc)] of LLM::AI::Message)
     openai_payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(models.model("deepseek", "deepseek-flash"), context, LLM::AI::StreamOptions.new))
     openai_payload["model"].should eq "deepseek-flash"
     anthropic_payload = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(models.model("anthropic", "claude-opus-4-5"), context, LLM::AI::StreamOptions.new, false))
@@ -70,7 +70,7 @@ describe LLM::AI::Models do
 
   it "logs in and out through the ergonomic auth surface" do
     with_temp_store do |store, _, _|
-      models      = LLM::AI::Models.build(store)
+      models = LLM::AI::Models.build(store)
       interaction = RecordingInteraction.new(["sk-ergo"])
       LLM::AI::Auth.login(models, "deepseek", :api_key, interaction)
       store.read("deepseek").should eq LLM::AI::ApiKeyCredential.new("sk-ergo")
@@ -107,16 +107,16 @@ describe LLM::AI::Models do
   end
 
   it "chat collects the final message" do
-    models  = LLM::AI::Models.build
+    models = LLM::AI::Models.build
     message = models.chat(models.model("faux", "faux-chat"), faux_context)
     message.content.should eq [LLM::AI::TextContent.new("hello")]
     message.stop_reason.should eq LLM::AI::StopReason::Stop
   end
 
   it "returns the partial message on abort" do
-    models   = LLM::AI::Models.build
-    abort    = LLM::AI::AbortHandle.new
-    stream   = models.stream(models.model("faux", "faux-chat"), faux_context, nil, abort)
+    models = LLM::AI::Models.build
+    abort = LLM::AI::AbortHandle.new
+    stream = models.stream(models.model("faux", "faux-chat"), faux_context, nil, abort)
     saw_text = false
     stream.each do |event|
       case event

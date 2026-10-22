@@ -18,14 +18,14 @@ module LLM::AI::FauxProvider
     stream = MessageStream.new(abort)
     spawn do
       started_at = Time.instant
-      partial    = AssistantMessage.new([] of ContentBlock, "faux", model.id, Time.utc)
+      partial = AssistantMessage.new([] of ContentBlock, "faux", model.id, Time.utc)
       stream.push(StreamEvent::Start.new(partial))
       case model.id
       when "faux-error"
         failed = AssistantMessage.new(partial.content, "faux", model.id, Time.utc, error_message: "faux error", stop_reason: StopReason::Error)
         stream.finish(StreamEvent::Error.new(:error, failed))
       else
-        text    = TextContent.new("hello")
+        text = TextContent.new("hello")
         updated = AssistantMessage.new([text] of ContentBlock, "faux", model.id, Time.utc)
         stream.push(StreamEvent::TextDelta.new(0, "hello", updated))
         if abort

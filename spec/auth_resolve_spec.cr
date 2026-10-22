@@ -44,7 +44,7 @@ describe LLM::AI::Auth do
         oauth_cred(Time.utc.to_unix_ms + 3_600_000)
       }
       store.modify("anthropic") { oauth_cred(Time.utc.to_unix_ms + 600_000) }
-      auth   = provider_auth(oauth: oauth_auth(refresh))
+      auth = provider_auth(oauth: oauth_auth(refresh))
       result = LLM::AI::Auth.resolve("anthropic", auth, store, LLM::AI::Auth::AuthContext.default)
       result.source.should eq "oauth"
       result.auth.api_key.should eq "access-t"
@@ -83,7 +83,7 @@ describe LLM::AI::Auth do
           raise LLM::AI::Auth::DeadCredential.new("dead")
         }
         store.modify("deepseek") { oauth_cred(Time.utc.to_unix_ms + 1_000) }
-        auth   = provider_auth(api_key_auth("TEST_API_KEY"), oauth_auth(refresh))
+        auth = provider_auth(api_key_auth("TEST_API_KEY"), oauth_auth(refresh))
         result = LLM::AI::Auth.resolve("deepseek", auth, store, LLM::AI::Auth::AuthContext.default)
         result.source.should eq "ambient env"
         result.auth.api_key.should eq "env-key"
@@ -117,7 +117,7 @@ describe LLM::AI::Auth do
           oauth_cred(Time.utc.to_unix_ms + 3_600_000)
         }
         store.modify("deepseek") { oauth_cred(Time.utc.to_unix_ms + 1_000) }
-        auth      = provider_auth(api_key_auth("TEST_API_KEY"), oauth_auth(refresh))
+        auth = provider_auth(api_key_auth("TEST_API_KEY"), oauth_auth(refresh))
         overrides = LLM::AI::Auth::AuthOverrides.new(nil, nil, refresh_timeout: 50.milliseconds)
         expect_raises(LLM::AI::Auth::Error, "timed out") do
           LLM::AI::Auth.resolve("deepseek", auth, store, LLM::AI::Auth::AuthContext.default, overrides)
@@ -132,7 +132,7 @@ describe LLM::AI::Auth do
     with_temp_store do |store, _, _|
       with_env({"TEST_API_KEY" => "env-key"}) do
         store.modify("deepseek") { LLM::AI::ApiKeyCredential.new("stored-key") }
-        auth   = provider_auth(api_key_auth("TEST_API_KEY"))
+        auth = provider_auth(api_key_auth("TEST_API_KEY"))
         result = LLM::AI::Auth.resolve("deepseek", auth, store, LLM::AI::Auth::AuthContext.default)
         result.source.should eq "stored credential"
         result.auth.api_key.should eq "stored-key"
@@ -143,7 +143,7 @@ describe LLM::AI::Auth do
   it "ANTHROPIC_AUTH_TOKEN becomes a Bearer header" do
     with_temp_store do |store, _, _|
       with_env({"ANTHROPIC_AUTH_TOKEN" => "token-1"}) do
-        auth   = provider_auth(api_key_auth("ANTHROPIC_API_KEY"))
+        auth = provider_auth(api_key_auth("ANTHROPIC_API_KEY"))
         result = LLM::AI::Auth.resolve("anthropic", auth, store, LLM::AI::Auth::AuthContext.default)
         result.source.should eq "ambient env"
         result.auth.api_key.should be_nil
@@ -155,7 +155,7 @@ describe LLM::AI::Auth do
   it "login with api_key prompts secret and stores" do
     with_temp_store do |store, _, _|
       interaction = RecordingInteraction.new(["sk-abc"])
-      auth        = provider_auth(api_key_auth("TEST_API_KEY"))
+      auth = provider_auth(api_key_auth("TEST_API_KEY"))
       LLM::AI::Auth.login("deepseek", auth, store, interaction, :api_key)
       store.read("deepseek").should eq LLM::AI::ApiKeyCredential.new("sk-abc")
     end

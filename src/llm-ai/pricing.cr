@@ -1,10 +1,10 @@
 # src/llm-ai/pricing.cr
 module LLM::AI::Pricing
   def self.calculate(model : Model, usage : Usage) : UsageCost
-    tier             = tier_for(model.cost, usage.input)
-    input_cost       = usage.input * tier.input / 1_000_000.0
-    output_cost      = usage.output * tier.output / 1_000_000.0
-    cache_read_cost  = usage.cache_read * tier.cache_read / 1_000_000.0
+    tier = tier_for(model.cost, usage.input)
+    input_cost = usage.input * tier.input / 1_000_000.0
+    output_cost = usage.output * tier.output / 1_000_000.0
+    cache_read_cost = usage.cache_read * tier.cache_read / 1_000_000.0
     cache_write_cost = cache_write_cost(tier, usage)
     UsageCost.new(
       input_cost,

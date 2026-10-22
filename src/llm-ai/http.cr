@@ -6,9 +6,9 @@ module LLM::AI::Http
   MAX_RETRY_DELAY_SECONDS = 60
 
   class Error < Exception
-    getter status  : Int32
+    getter status : Int32
     getter headers : HTTP::Headers
-    getter body    : String
+    getter body : String
 
     def initialize(@status, message : String, @headers, @body)
       super(message)
@@ -17,8 +17,8 @@ module LLM::AI::Http
 
   struct Options
     getter connect_timeout : Time::Span
-    getter read_timeout    : Time::Span
-    getter max_retries     : Int32
+    getter read_timeout : Time::Span
+    getter max_retries : Int32
 
     def initialize(@connect_timeout : Time::Span = 10.seconds, @read_timeout : Time::Span = 10.minutes, @max_retries : Int32 = 0)
     end
@@ -41,7 +41,7 @@ module LLM::AI::Http
   end
 
   private def self.perform_once(url, method, headers, body, options, abort, on_response) : Error?
-    uri    = URI.parse(url)
+    uri = URI.parse(url)
     client = HTTP::Client.new(uri)
     client.connect_timeout = options.connect_timeout
     client.read_timeout = options.read_timeout
@@ -65,7 +65,7 @@ module LLM::AI::Http
           on_response.call(response)
         else
           body_text = response.body_io.gets_to_end
-          captured  = Error.new(response.status_code, error_message(response, body_text), response.headers, body_text)
+          captured = Error.new(response.status_code, error_message(response, body_text), response.headers, body_text)
         end
       end
     rescue ex

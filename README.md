@@ -452,10 +452,50 @@ DeepSeek's on-disk context cache is automatic. To get cache hits, keep the
 system prompt and tool definitions byte-stable across turns; cached input tokens
 are reported as `usage.cache_read` and billed at the model's `cache_read` rate.
 
+## Moonshot REST endpoints
+
+`Models#client` returns a `Rest::Client` for a provider's non-streaming REST
+API. Auth resolution matches streaming (override → stored credential →
+environment). Moonshot registers the full endpoint set; other providers raise
+`ModelsError` with kind `"capability"`.
+
+```crystal
+client = models.client("moonshot")
+
+models  = client.list_models
+balance = client.balance
+
+file = client.upload_file("requests.jsonl", "batch")
+batch = client.create_batch(file.id, "12h")
+batch = client.get_batch(batch.id)
+
+estimate = client.estimate_tokens(model, context)
+check = client.verify_signature(nonce, timestamp_ms, "kimi-k3", signature)
+
+results = client.web_search("crystal programming")
+results = client.web_search_pro("crystal", sites: ["crystal-lang.org"])
+page = client.fetch("https://crystal-lang.org")
+
+content = client.file_content(file.id)
+client.delete_file(file.id)
+```
+
+The request signature flow pairs with streaming: send a nonce via
+`StreamOptions#headers` (`X-Msh-Request-Nonce`), read the
+`Msh-Request-Timestamp` / `Msh-Request-Signature` response headers via the
+`on_response` hook, then verify them with `client.verify_signature`.
+
 ## Public API reference
 
 - `LLM::AI::Models` — `.build`, `#provider`, `#providers`, `#model`,
-  `#models_for`, `#stream`, `#chat`, `#store`.
+  `#models_for`, `#stream`, `#chat`, `#client`, `#store`.
+- `LLM::AI::Rest::Client` — `#list_models`, `#balance`, `#upload_file`,
+  `#list_files`, `#get_file`, `#delete_file`, `#file_content`,
+  `#estimate_tokens`, `#verify_signature`, `#web_search`, `#web_search_pro`,
+  `#fetch`, `#create_batch`, `#list_batches`, `#get_batch`, `#cancel_batch`;
+  result types under `LLM::AI::Rest` (`Balance`, `RemoteModel`, `FileObject`,
+  `TokenEstimate`, `SignatureVerification`, `SearchResult`, `SearchProResult`,
+  `FetchResult`, `Batch`, `BatchList`).
 - `LLM::AI::MessageStream` — `#each`, `#result`, `#abort`.
 - `LLM::AI::Context`, `LLM::AI::Tool`, `LLM::AI::StreamOptions`,
   `LLM::AI::StreamHooks`.

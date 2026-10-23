@@ -143,6 +143,10 @@ module LLM::AI::ModelData
       :deepseek
     when "openai"
       :openai
+    when "x_api_key"
+      :x_api_key
+    when "bearer"
+      :bearer
     else
       raise Error.new("unknown symbol value: #{value}")
     end

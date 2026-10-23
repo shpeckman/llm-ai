@@ -8,11 +8,12 @@ private def deepseek_model(base_url : String = "http://127.0.0.1") : LLM::AI::Mo
     thinking_format: :deepseek,
     requires_reasoning_content_on_assistant_messages: true,
     supports_store: false,
+    supports_response_format: true,
   )
   LLM::AI::Model.new("deepseek-chat", "deepseek-chat", "deepseek", base_url, LLM::AI::ApiKind::OpenaiCompletions,
     [LLM::AI::InputKind::Text], 128_000, 8192, true,
     LLM::AI::ModelCost.new(0.27, 1.1, 0.07, 0.27, nil),
-    {"high" => "high", "off" => nil}, false, nil, compat)
+    {"minimal" => "low", "low" => "low", "medium" => "high", "high" => "high", "xhigh" => "high", "max" => "max", "off" => nil}, false, nil, compat)
 end
 
 private def kimi_model(base_url : String = "http://127.0.0.1") : LLM::AI::Model
@@ -193,6 +194,29 @@ describe LLM::AI::Api::OpenAICompletions do
     payload["reasoning_effort"].should eq "high"
     payload.as_h.has_key?("max_tokens").should be_true
     payload.as_h.has_key?("max_completion_tokens").should be_false
+  end
+
+  it "maps deepseek thinking levels to low/high/max efforts" do
+    {"minimal" => "low", "low" => "low", "medium" => "high", "high" => "high", "xhigh" => "high", "max" => "max"}.each do |level, effort|
+      payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(
+        deepseek_model, user_context, LLM::AI::StreamOptions.new(thinking_level: level)))
+      payload["thinking"]["type"].should eq "enabled"
+      payload["reasoning_effort"].should eq effort
+    end
+  end
+
+  it "defaults deepseek effort to high when thinking is enabled without a level" do
+    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(
+      deepseek_model, user_context, LLM::AI::StreamOptions.new(thinking_enabled: true)))
+    payload["thinking"]["type"].should eq "enabled"
+    payload["reasoning_effort"].should eq "high"
+  end
+
+  it "passes response_format through for deepseek" do
+    format = JSON.parse(%({"type":"json_object"}))
+    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(
+      deepseek_model, user_context, LLM::AI::StreamOptions.new(response_format: format)))
+    payload["response_format"]["type"].should eq "json_object"
   end
 
   it "emits context.system_prompt as a leading system message" do
@@ -555,7 +579,8 @@ describe LLM::AI::Api::OpenAICompletions do
       safety_identifier: "user-42",
     )
     payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, user_context, options))
-    ["response_format", "stop", "prediction", "logprobs", "top_logprobs",
+    payload["response_format"]["type"].should eq "json_object"
+    ["stop", "prediction", "logprobs", "top_logprobs",
      "prompt_cache_key", "prompt_cache_options", "safety_identifier"].each do |key|
       payload.as_h.has_key?(key).should be_false
     end

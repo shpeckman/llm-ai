@@ -48,8 +48,9 @@ module LLM::AI::Rest
     getter created_at : Int64
     getter filename : String
     getter purpose : String
-    getter status : String
+    getter status : String?
     getter status_details : String?
+    getter expires_at : Int64?
   end
 
   struct FileList
@@ -142,6 +143,34 @@ module LLM::AI::Rest
     getter url : String
     getter markdown : String
     getter title : String
+  end
+
+  struct DeepSeekSearchResult
+    include JSON::Serializable
+
+    getter rerank_score : Float64
+    getter title : String
+    getter url : String
+    getter snippet : String
+    getter summary : String
+    getter content : String
+    getter site_name : String?
+    getter site_icon : String?
+    getter date : String?
+    getter authority : Int32
+  end
+
+  struct DeepSeekSearchResults
+    include JSON::Serializable
+
+    getter results : Array(DeepSeekSearchResult)
+  end
+
+  struct DeepSeekFetchResult
+    include JSON::Serializable
+
+    getter title : String
+    getter content : String
   end
 
   struct BatchRequestCounts

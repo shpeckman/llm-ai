@@ -849,6 +849,14 @@ module LLM::AI
     getter thinking_budgets : Hash(String, Int32)?
     getter max_retry_delay_ms : Int32?
     getter identity : ClientIdentity?
+    getter response_format : JSON::Any?
+    getter stop : Array(String)?
+    getter prediction : JSON::Any?
+    getter logprobs : Bool?
+    getter top_logprobs : Int32?
+    getter prompt_cache_key : String?
+    getter prompt_cache_options : JSON::Any?
+    getter safety_identifier : String?
 
     def initialize(
       @max_tokens : Int32? = nil,
@@ -870,6 +878,14 @@ module LLM::AI
       @thinking_budgets : Hash(String, Int32)? = nil,
       @max_retry_delay_ms : Int32? = nil,
       @identity : ClientIdentity? = nil,
+      @response_format : JSON::Any? = nil,
+      @stop : Array(String)? = nil,
+      @prediction : JSON::Any? = nil,
+      @logprobs : Bool? = nil,
+      @top_logprobs : Int32? = nil,
+      @prompt_cache_key : String? = nil,
+      @prompt_cache_options : JSON::Any? = nil,
+      @safety_identifier : String? = nil,
     )
     end
 

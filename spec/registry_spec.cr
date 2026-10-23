@@ -14,6 +14,7 @@ describe LLM::AI::Models do
     models.providers.should contain "anthropic"
     models.providers.should contain "kimi-coding"
     models.providers.should contain "moonshot"
+    models.providers.should contain "moonshot-anthropic"
   end
 
   it "looks up catalog models per provider" do
@@ -25,6 +26,9 @@ describe LLM::AI::Models do
     models.model("kimi-coding", "kimi-for-coding").base_url.should eq "https://api.kimi.com/coding/v1"
     models.model("moonshot", "kimi-k3").provider.should eq "moonshot"
     models.model("moonshot", "kimi-k3").base_url.should eq "https://api.moonshot.ai/v1"
+    models.model("moonshot-anthropic", "kimi-k3").api.should eq LLM::AI::ApiKind::AnthropicMessages
+    models.model("moonshot-anthropic", "kimi-k3").base_url.should eq "https://api.moonshot.ai/anthropic"
+    models.model("moonshot-anthropic", "kimi-k3").compat.anthropic_auth_scheme.should eq :bearer
   end
 
   it "resolves deepseek, kimi, and moonshot ambient env keys" do

@@ -8,11 +8,12 @@ private def deepseek_model(base_url : String = "http://127.0.0.1") : LLM::AI::Mo
     thinking_format: :deepseek,
     requires_reasoning_content_on_assistant_messages: true,
     supports_store: false,
+    supports_response_format: true,
   )
   LLM::AI::Model.new("deepseek-chat", "deepseek-chat", "deepseek", base_url, LLM::AI::ApiKind::OpenaiCompletions,
     [LLM::AI::InputKind::Text], 128_000, 8192, true,
     LLM::AI::ModelCost.new(0.27, 1.1, 0.07, 0.27, nil),
-    {"high" => "high", "off" => nil}, false, nil, compat)
+    {"minimal" => "low", "low" => "low", "medium" => "high", "high" => "high", "xhigh" => "high", "max" => "max", "off" => nil}, false, nil, compat)
 end
 
 private def kimi_model(base_url : String = "http://127.0.0.1") : LLM::AI::Model

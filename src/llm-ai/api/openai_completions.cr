@@ -84,6 +84,9 @@ module LLM::AI::Api::OpenAICompletions
       state.stop_reason, state.error_message = map_stop_reason(finish)
       state.has_finish_reason = true
     end
+    if logprobs = choice["logprobs"]?
+      state.logprobs << logprobs
+    end
     delta = choice["delta"]?
     return unless delta
     reasoning = nil

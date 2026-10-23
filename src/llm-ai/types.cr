@@ -25,6 +25,8 @@ module LLM::AI
       when "none"                  then :none
       when "short"                 then :short
       when "long"                  then :long
+      when "x_api_key"             then :x_api_key
+      when "bearer"                then :bearer
       else
         pull.raise "Unknown symbol name"
       end

@@ -103,6 +103,7 @@ module LLM::AI::ModelData
       supports_logprobs: bool_field(raw, "supports_logprobs", false),
       supports_prompt_cache_key: bool_field(raw, "supports_prompt_cache_key", false),
       supports_safety_identifier: bool_field(raw, "supports_safety_identifier", false),
+      anthropic_auth_scheme: symbol_field(raw, "anthropic_auth_scheme", :x_api_key),
     )
   end
 

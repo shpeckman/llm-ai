@@ -48,8 +48,9 @@ module LLM::AI::Rest
     getter created_at : Int64
     getter filename : String
     getter purpose : String
-    getter status : String
+    getter status : String?
     getter status_details : String?
+    getter expires_at : Int64?
   end
 
   struct FileList

@@ -11,6 +11,8 @@ describe LLM::AI::Models do
     models = LLM::AI::Models.build
     models.providers.should contain "faux"
     models.providers.should contain "deepseek"
+    models.providers.should contain "deepseek-anthropic"
+    models.providers.should contain "deepseek-responses"
     models.providers.should contain "anthropic"
     models.providers.should contain "kimi-coding"
     models.providers.should contain "moonshot"
@@ -20,6 +22,10 @@ describe LLM::AI::Models do
   it "looks up catalog models per provider" do
     models = LLM::AI::Models.build
     models.model("deepseek", "deepseek-flash").provider.should eq "deepseek"
+    models.model("deepseek-anthropic", "deepseek-flash").api.should eq LLM::AI::ApiKind::AnthropicMessages
+    models.model("deepseek-anthropic", "deepseek-flash").base_url.should eq "https://api.deepseek.com/anthropic"
+    models.model("deepseek-anthropic", "deepseek-flash").compat.supports_output_config_effort.should be_true
+    models.model("deepseek-responses", "deepseek-flash").api.should eq LLM::AI::ApiKind::OpenaiResponses
     models.model("anthropic", "claude-opus-4-5").api.should eq LLM::AI::ApiKind::AnthropicMessages
     models.model("anthropic", "claude-opus-5-5").compat.force_adaptive_thinking.should be_true
     models.model("kimi-coding", "kimi-for-coding").provider.should eq "kimi-coding"

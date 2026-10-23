@@ -767,6 +767,7 @@ module LLM::AI
       @supports_logprobs : Bool = false,
       @supports_prompt_cache_key : Bool = false,
       @supports_safety_identifier : Bool = false,
+      @anthropic_auth_scheme : Symbol = :x_api_key,
     )
     end
   end

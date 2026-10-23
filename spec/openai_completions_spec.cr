@@ -196,6 +196,29 @@ describe LLM::AI::Api::OpenAICompletions do
     payload.as_h.has_key?("max_completion_tokens").should be_false
   end
 
+  it "maps deepseek thinking levels to low/high/max efforts" do
+    {"minimal" => "low", "low" => "low", "medium" => "high", "high" => "high", "xhigh" => "high", "max" => "max"}.each do |level, effort|
+      payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(
+        deepseek_model, user_context, LLM::AI::StreamOptions.new(thinking_level: level)))
+      payload["thinking"]["type"].should eq "enabled"
+      payload["reasoning_effort"].should eq effort
+    end
+  end
+
+  it "defaults deepseek effort to high when thinking is enabled without a level" do
+    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(
+      deepseek_model, user_context, LLM::AI::StreamOptions.new(thinking_enabled: true)))
+    payload["thinking"]["type"].should eq "enabled"
+    payload["reasoning_effort"].should eq "high"
+  end
+
+  it "passes response_format through for deepseek" do
+    format = JSON.parse(%({"type":"json_object"}))
+    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(
+      deepseek_model, user_context, LLM::AI::StreamOptions.new(response_format: format)))
+    payload["response_format"]["type"].should eq "json_object"
+  end
+
   it "emits context.system_prompt as a leading system message" do
     context = LLM::AI::Context.new(
       [LLM::AI::UserMessage.new("hi", Time.utc)] of LLM::AI::Message,

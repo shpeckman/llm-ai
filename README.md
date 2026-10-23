@@ -27,9 +27,9 @@ All functionality lives under the `LLM::AI` module.
 - Request/response/event hooks for observability.
 - Client identity: `User-Agent` and provider attribution headers.
 - A scripted faux provider for tests.
-- Moonshot REST endpoints beyond chat: models, balance, files, token
-  estimation, signature verification, web search/fetch, and batches via
-  `Rest::Client` (`Models#client`).
+- Provider REST endpoints beyond chat: Moonshot models, balance, files, token
+  estimation, signature verification, web search/fetch, and batches; DeepSeek
+  search/fetch and image files via `Rest::Client` (`Models#client`).
 
 ## Requirements
 

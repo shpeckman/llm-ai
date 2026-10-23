@@ -201,7 +201,7 @@ describe LLM::AI::Api::OpenAIResponses do
     payload["model"].should eq "deepseek-flash"
     payload["instructions"].should eq "be nice"
     payload["stream"].should be_true
-    payload["max_output_tokens"].should eq 17_408
+    payload["max_output_tokens"].should eq 9_216
     payload["reasoning"]["effort"].should eq "high"
     payload["text"]["format"]["type"].should eq "json_object"
     payload["tool_choice"].should eq "auto"

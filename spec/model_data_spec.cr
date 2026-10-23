@@ -3,8 +3,8 @@ require "./spec_helper"
 require "../src/llm-ai"
 
 describe LLM::AI::ModelData do
-  it "loads all four catalogs" do
-    {"deepseek", "kimi-coding", "moonshot", "anthropic"}.each do |provider_id|
+  it "loads all catalogs" do
+    {"deepseek", "deepseek-anthropic", "deepseek-responses", "kimi-coding", "moonshot", "moonshot-anthropic", "moonshot-responses", "anthropic"}.each do |provider_id|
       models = LLM::AI::ModelData.load(provider_id)
       models.size.should be > 0
       models.each do |model|
@@ -24,6 +24,23 @@ describe LLM::AI::ModelData do
       model.compat.max_tokens_field.should eq :max_tokens
       model.compat.thinking_format.should eq :deepseek
       model.compat.requires_reasoning_content_on_assistant_messages.should be_true
+      model.compat.supports_response_format.should be_true
+      model.thinking_level_map["medium"].should eq "high"
+      model.thinking_level_map["max"].should eq "max"
+    end
+  end
+
+  it "applies deepseek-anthropic and deepseek-responses flags" do
+    LLM::AI::ModelData.load("deepseek-anthropic").each do |model|
+      model.api.should eq LLM::AI::ApiKind::AnthropicMessages
+      model.base_url.should eq "https://api.deepseek.com/anthropic"
+      model.compat.supports_output_config_effort.should be_true
+      model.compat.supports_eager_tool_input_streaming.should be_false
+      model.compat.anthropic_auth_scheme.should eq :x_api_key
+    end
+    LLM::AI::ModelData.load("deepseek-responses").each do |model|
+      model.api.should eq LLM::AI::ApiKind::OpenaiResponses
+      model.thinking_level_map["medium"].should eq "high"
     end
   end
 

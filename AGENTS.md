@@ -130,5 +130,11 @@ rename `Bool` getters to `?` and break the public API), `Lint/NotNil`
 - Auth resolution order is override → stored credential → environment; see
   `LLM::AI::Auth.resolve` in `src/llm-ai/auth.cr`. Credentials default to
   `~/.config/pi-ai-cr/auth.json`.
+- Non-streaming provider endpoints live behind `Rest::Client`
+  (`Models#client`), with per-provider path tables in
+  `src/llm-ai/rest/endpoints.cr`; unsupported providers raise `ModelsError`
+  with kind `"capability"`. REST calls reuse `Http.request` and
+  `Identity.headers`, and results are typed structs in
+  `src/llm-ai/rest/types.cr`.
 - Add new tests only where existing coverage exists; follow the `spec/*_spec.cr`
   naming and reuse the helpers in `spec/spec_helper.cr`.

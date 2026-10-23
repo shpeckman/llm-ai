@@ -28,13 +28,7 @@
    "cache_write_1h": 6.0
   },
   "compat": {
-   "anthropic_auth_scheme": "bearer",
-   "supports_eager_tool_input_streaming": false,
-   "supports_long_cache_retention": false,
-   "supports_cache_control_on_tools": false,
-   "supports_mid_convo_system_messages": false,
-   "supports_mid_convo_tool_changes": false,
-   "supports_mid_convo_effort": false
+   "anthropic_auth_scheme": "bearer"
   }
  },
  {
@@ -65,13 +59,7 @@
    "cache_write": 0.95
   },
   "compat": {
-   "anthropic_auth_scheme": "bearer",
-   "supports_eager_tool_input_streaming": false,
-   "supports_long_cache_retention": false,
-   "supports_cache_control_on_tools": false,
-   "supports_mid_convo_system_messages": false,
-   "supports_mid_convo_tool_changes": false,
-   "supports_mid_convo_effort": false
+   "anthropic_auth_scheme": "bearer"
   }
  },
  {
@@ -102,13 +90,7 @@
    "cache_write": 1.9
   },
   "compat": {
-   "anthropic_auth_scheme": "bearer",
-   "supports_eager_tool_input_streaming": false,
-   "supports_long_cache_retention": false,
-   "supports_cache_control_on_tools": false,
-   "supports_mid_convo_system_messages": false,
-   "supports_mid_convo_tool_changes": false,
-   "supports_mid_convo_effort": false
+   "anthropic_auth_scheme": "bearer"
   }
  },
  {
@@ -139,13 +121,7 @@
    "cache_write": 0.95
   },
   "compat": {
-   "anthropic_auth_scheme": "bearer",
-   "supports_eager_tool_input_streaming": false,
-   "supports_long_cache_retention": false,
-   "supports_cache_control_on_tools": false,
-   "supports_mid_convo_system_messages": false,
-   "supports_mid_convo_tool_changes": false,
-   "supports_mid_convo_effort": false
+   "anthropic_auth_scheme": "bearer"
   }
  }
 ]

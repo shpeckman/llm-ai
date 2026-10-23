@@ -83,6 +83,8 @@ module LLM::AI
       models = Models.new(store || FileCredentialStore.new, ctx || Auth::AuthContext.default)
       models.register(FauxProvider.provider)
       models.register(DeepSeekProvider.provider)
+      models.register(DeepSeekAnthropicProvider.provider)
+      models.register(DeepSeekResponsesProvider.provider)
       models.register(AnthropicProvider.provider)
       models.register(KimiProvider.provider)
       models.register(MoonshotProvider.provider)

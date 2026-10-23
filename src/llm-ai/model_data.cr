@@ -35,6 +35,10 @@ module LLM::AI::ModelData
     json = case provider_id
            when "deepseek"
              {{ read_file("#{__DIR__}/data/deepseek.json") }}
+           when "deepseek-anthropic"
+             {{ read_file("#{__DIR__}/data/deepseek-anthropic.json") }}
+           when "deepseek-responses"
+             {{ read_file("#{__DIR__}/data/deepseek-responses.json") }}
            when "kimi-coding"
              {{ read_file("#{__DIR__}/data/kimi-coding.json") }}
            when "moonshot", "kimi"

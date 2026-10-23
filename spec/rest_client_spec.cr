@@ -9,8 +9,8 @@ private def rest_provider(base_url : String, id : String = "moonshot") : LLM::AI
   LLM::AI::Provider.new(id, "Moonshot", base_url, {} of String => String,
     LLM::AI::Auth::ProviderAuth.new(LLM::AI::Auth::ApiKeyAuth.new("Moonshot API key", ["MOONSHOT_API_KEY"])),
     [model],
-    ->(model : LLM::AI::Model, context : LLM::AI::Context, options : LLM::AI::StreamOptions, auth : LLM::AI::Auth::AuthResult, abort : LLM::AI::AbortHandle?) {
-      LLM::AI::Api::OpenAICompletions.stream(model, context, options, auth, abort)
+    ->(stream_model : LLM::AI::Model, context : LLM::AI::Context, options : LLM::AI::StreamOptions, auth : LLM::AI::Auth::AuthResult, abort : LLM::AI::AbortHandle?) {
+      LLM::AI::Api::OpenAICompletions.stream(stream_model, context, options, auth, abort)
     })
 end
 

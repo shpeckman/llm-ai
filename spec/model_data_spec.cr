@@ -171,7 +171,7 @@ describe LLM::AI::ModelData do
       JSON
     ))
     compat.max_tokens_field.should eq :max_tokens
-    compat.thinking_format.should eq :deepseek
+    compat.thinking_format.should eq :toggle
     compat.requires_reasoning_content_on_assistant_messages.should be_true
     compat.supports_finish_reason.should be_false
     compat.supports_usage_in_streaming.should be_false

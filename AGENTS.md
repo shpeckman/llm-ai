@@ -4,10 +4,11 @@
 
 `llm-ai` is a provider-agnostic Crystal library for streaming LLM inference.
 It exposes one `LLM::AI` API over multiple providers (DeepSeek, Anthropic,
-Kimi, Moonshot — over three wire protocols — and an in-memory `faux`
+Kimi, Moonshot — over four wire protocols — and an in-memory `faux`
 provider), normalizing messages, tools, streaming events, usage, and cost
-behind a single interface. A `Rest::Client` covers Moonshot's non-streaming
-REST endpoints (files, balance, tokenizers, signatures, tools, batches).
+behind a single interface. A `Rest::Client` covers Moonshot's and DeepSeek's
+non-streaming REST endpoints (files, balance, tokenizers, signatures, tools,
+batches, search, fetch).
 
 It depends on the `typebox` shard (`github: shpeckman/typebox`), used only by
 `src/llm-ai/validation.cr`. `llm-agent` builds on it.
@@ -99,10 +100,11 @@ rename `Bool` getters to `?` and break the public API), `Lint/NotNil`
 - A provider registers a single `Provider` value (id, name, base URL, headers,
   auth, models, and a `stream` proc) in `Models.build`
   (`src/llm-ai/models.cr`).
-- Three wire adapters exist: `Api::OpenAICompletions` (DeepSeek, Kimi,
-  Moonshot, faux), `Api::AnthropicMessages` (Anthropic, moonshot-anthropic),
-  and `Api::MoonshotResponses` (moonshot-responses). A provider's `stream`
-  proc just delegates to one of them.
+- Four wire adapters exist: `Api::OpenAICompletions` (DeepSeek, Kimi,
+  Moonshot, faux), `Api::AnthropicMessages` (Anthropic, moonshot-anthropic,
+  deepseek-anthropic), `Api::MoonshotResponses` (moonshot-responses), and
+  `Api::OpenAIResponses` (deepseek-responses). A provider's `stream` proc just
+  delegates to one of them.
 - `Models#stream` always calls `Transform.normalize(context, model)` before
   handing the context to the provider, so adapters can assume a normalized
   message list.
@@ -133,7 +135,8 @@ rename `Bool` getters to `?` and break the public API), `Lint/NotNil`
   `~/.config/pi-ai-cr/auth.json`.
 - Non-streaming provider endpoints live behind `Rest::Client`
   (`Models#client`), with per-provider path tables in
-  `src/llm-ai/rest/endpoints.cr`; unsupported providers raise `ModelsError`
+  `src/llm-ai/rest/endpoints.cr` (`moonshot` and `deepseek`); unsupported
+  providers raise `ModelsError`
   with kind `"capability"`. REST calls reuse `Http.request` and
   `Identity.headers`, and results are typed structs in
   `src/llm-ai/rest/types.cr`.

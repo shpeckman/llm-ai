@@ -97,6 +97,12 @@ module LLM::AI::ModelData
       allowed_fallback_models: build_fallback_models(raw),
       requires_tool_result_name: bool_field(raw, "requires_tool_result_name", false),
       requires_assistant_after_tool_result: bool_field(raw, "requires_assistant_after_tool_result", false),
+      supports_response_format: bool_field(raw, "supports_response_format", false),
+      supports_stop: bool_field(raw, "supports_stop", false),
+      supports_prediction: bool_field(raw, "supports_prediction", false),
+      supports_logprobs: bool_field(raw, "supports_logprobs", false),
+      supports_prompt_cache_key: bool_field(raw, "supports_prompt_cache_key", false),
+      supports_safety_identifier: bool_field(raw, "supports_safety_identifier", false),
     )
   end
 

@@ -47,6 +47,7 @@ module LLM::AI::Api::OpenAICompletions
       @streamed_details = [] of JSON::Any
       @duration_ms = nil
       @reasoning_details = nil
+      @logprobs = [] of JSON::Any
     end
   end
 

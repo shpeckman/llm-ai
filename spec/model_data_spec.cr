@@ -22,7 +22,7 @@ describe LLM::AI::ModelData do
     LLM::AI::ModelData.load("deepseek").each do |model|
       model.api.should eq LLM::AI::ApiKind::OpenaiCompletions
       model.compat.max_tokens_field.should eq :max_tokens
-      model.compat.thinking_format.should eq :deepseek
+      model.compat.thinking_format.should eq :toggle
       model.compat.requires_reasoning_content_on_assistant_messages.should be_true
       model.compat.supports_response_format.should be_true
       model.thinking_level_map["medium"].should eq "high"
@@ -147,7 +147,7 @@ describe LLM::AI::ModelData do
     compat = LLM::AI::ModelData.build_compat(JSON.parse(<<-JSON
       {
         "max_tokens_field": "max_tokens",
-        "thinking_format": "deepseek",
+        "thinking_format": "toggle",
         "requires_reasoning_content_on_assistant_messages": true,
         "supports_finish_reason": false,
         "supports_usage_in_streaming": false,

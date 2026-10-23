@@ -163,6 +163,81 @@ describe LLM::AI::Rest::Client do
     end
   end
 
+  it "runs deepseek search" do
+    api = json_response(%({"results":[{"rerank_score":2.4,"title":"t","url":"u","snippet":"sn","summary":"sum","content":"c","site_name":"s","site_icon":null,"date":"2026-06-01T00:00:00+00:00","authority":3}]}))
+    begin
+      client = rest_client("http://127.0.0.1:#{api.port}", id: "deepseek")
+      results = client.deepseek_search("deepseek v4", count: 5, need_content: true)
+      results.size.should eq 1
+      results[0].rerank_score.should eq 2.4
+      results[0].summary.should eq "sum"
+      results[0].authority.should eq 3
+      results[0].site_icon.should be_nil
+      api.requests[0][0].should eq "POST"
+      api.requests[0][1].should eq "/v1/tools/search"
+      payload = JSON.parse(api.requests[0][2])
+      payload["query"].should eq "deepseek v4"
+      payload["count"].should eq 5
+      payload["need_content"].should be_true
+      payload.as_h.has_key?("ori_question").should be_false
+    ensure
+      api.close
+    end
+  end
+
+  it "runs deepseek fetch" do
+    api = json_response(%({"title":"t","content":"# hi"}))
+    begin
+      result = rest_client("http://127.0.0.1:#{api.port}", id: "deepseek").deepseek_fetch("https://x")
+      result.title.should eq "t"
+      result.content.should eq "# hi"
+      api.requests[0][1].should eq "/v1/tools/fetch"
+      JSON.parse(api.requests[0][2])["url"].should eq "https://x"
+    ensure
+      api.close
+    end
+  end
+
+  it "manages deepseek files without a status field" do
+    file_json = %({"id":"file-api-1","object":"file","bytes":5,"created_at":10,"filename":"a.png","purpose":"user_data","expires_at":20})
+    api = MockApi.new.serve(file_json, content_type: "application/json").start
+    path = File.tempname("rest-upload", ".png")
+    File.write(path, "hello")
+    begin
+      client = rest_client("http://127.0.0.1:#{api.port}", id: "deepseek")
+      file = client.get_file("file-api-1")
+      file.status.should be_nil
+      file.expires_at.should eq 20
+      api.requests[0][1].should eq "/files/file-api-1"
+
+      uploaded = client.upload_file(path, "user_data", expires_after_seconds: 3600)
+      uploaded.id.should eq "file-api-1"
+      api.requests[1][0].should eq "POST"
+      api.requests[1][1].should eq "/files"
+      api.requests[1][2].should contain "expires_after[anchor]"
+      api.requests[1][2].should contain "3600"
+
+      api.serve(%({"object":"list","data":[#{file_json}],"has_more":false}), content_type: "application/json")
+      client.list_files.size.should eq 1
+      api.requests[2][1].should eq "/files"
+
+      api.serve(%({"id":"file-api-1","object":"file","deleted":true}), content_type: "application/json")
+      client.delete_file("file-api-1").deleted.should be_true
+      api.requests[3][0].should eq "DELETE"
+      api.requests[3][1].should eq "/files/file-api-1"
+    ensure
+      api.close
+      File.delete(path) if File.exists?(path)
+    end
+  end
+
+  it "raises capability errors for endpoints a provider lacks" do
+    client = rest_client("http://127.0.0.1:1", id: "deepseek")
+    expect_raises(LLM::AI::ModelsError, /does not support file_content/) do
+      client.file_content("f1")
+    end
+  end
+
   it "manages batches" do
     batch_json = %({"id":"b1","object":"batch","endpoint":"/v1/chat/completions","input_file_id":"f1","completion_window":"12h","status":"validating","output_file_id":null,"error_file_id":null,"created_at":1,"in_progress_at":null,"expires_at":null,"finalizing_at":null,"completed_at":null,"failed_at":null,"cancelling_at":null,"cancelled_at":null,"request_counts":{"completed":0,"failed":0,"total":2},"metadata":null})
     api = MockApi.new.serve(batch_json, content_type: "application/json").start
@@ -192,7 +267,7 @@ describe LLM::AI::Rest::Client do
   end
 
   it "raises capability errors for unsupported providers" do
-    client = rest_client("http://127.0.0.1:1", id: "deepseek")
+    client = rest_client("http://127.0.0.1:1", id: "anthropic")
     expect_raises(LLM::AI::ModelsError, /no REST endpoints/) do
       client.balance
     end

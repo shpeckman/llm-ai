@@ -1,5 +1,5 @@
 # src/llm-ai/rest/client.cr
-require "http/form_data"
+require "http/formdata"
 
 module LLM::AI::Rest
   class Client

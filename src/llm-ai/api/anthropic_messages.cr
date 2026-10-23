@@ -870,6 +870,13 @@ module LLM::AI::Api::AnthropicMessages
           json.field "budget_tokens", Math.max(Math.min(budget, ceiling), 0)
         end
       end
+      if model.compat.supports_output_config_effort && (effort = resolved.effort)
+        json.field "output_config" do
+          json.object do
+            json.field "effort", effort
+          end
+        end
+      end
     else
       off = model.thinking_level_map["off"]?
       unless model.thinking_level_map.has_key?("off") && off.nil?

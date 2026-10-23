@@ -100,11 +100,11 @@ rename `Bool` getters to `?` and break the public API), `Lint/NotNil`
 - A provider registers a single `Provider` value (id, name, base URL, headers,
   auth, models, and a `stream` proc) in `Models.build`
   (`src/llm-ai/models.cr`).
-- Four wire adapters exist: `Api::OpenAICompletions` (DeepSeek, Kimi,
+- Three wire adapters exist: `Api::OpenAICompletions` (DeepSeek, Kimi,
   Moonshot, faux), `Api::AnthropicMessages` (Anthropic, moonshot-anthropic,
-  deepseek-anthropic), `Api::MoonshotResponses` (moonshot-responses), and
-  `Api::OpenAIResponses` (deepseek-responses). A provider's `stream` proc just
-  delegates to one of them.
+  deepseek-anthropic), and `Api::Responses` (moonshot-responses,
+  deepseek-responses; the moonshot/openai flavor is keyed on `Model#api`). A
+  provider's `stream` proc just delegates to one of them.
 - `Models#stream` always calls `Transform.normalize(context, model)` before
   handing the context to the provider, so adapters can assume a normalized
   message list.

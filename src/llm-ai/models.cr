@@ -86,6 +86,7 @@ module LLM::AI
       models.register(AnthropicProvider.provider)
       models.register(KimiProvider.provider)
       models.register(MoonshotProvider.provider)
+      models.register(MoonshotAnthropicProvider.provider)
       models
     end
 

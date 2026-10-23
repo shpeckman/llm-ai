@@ -29,6 +29,7 @@ require "./llm-ai/providers/deepseek"
 require "./llm-ai/providers/anthropic"
 require "./llm-ai/providers/kimi"
 require "./llm-ai/providers/moonshot"
+require "./llm-ai/providers/moonshot_anthropic"
 
 module LLM::AI
   VERSION = {{ read_file("#{__DIR__}/../shard.yml").lines.select(&.starts_with?("version:")).first.split(":")[1].strip }}

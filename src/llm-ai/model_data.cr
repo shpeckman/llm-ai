@@ -39,6 +39,8 @@ module LLM::AI::ModelData
              {{ read_file("#{__DIR__}/data/kimi-coding.json") }}
            when "moonshot", "kimi"
              {{ read_file("#{__DIR__}/data/moonshot.json") }}
+           when "moonshot-anthropic"
+             {{ read_file("#{__DIR__}/data/moonshot-anthropic.json") }}
            when "anthropic"
              {{ read_file("#{__DIR__}/data/anthropic.json") }}
            else

@@ -296,6 +296,7 @@ module LLM::AI
     getter timestamp : Time
     getter duration_ms : Int64?
     getter reasoning_details : JSON::Any?
+    getter logprobs : JSON::Any?
 
     def initialize(
       @content : Array(ContentBlock),
@@ -315,6 +316,7 @@ module LLM::AI
       @end_turn : Bool = false,
       @duration_ms : Int64? = nil,
       @reasoning_details : JSON::Any? = nil,
+      @logprobs : JSON::Any? = nil,
     )
     end
 
@@ -326,7 +328,8 @@ module LLM::AI
         stop_reason == other.stop_reason && deferred == other.deferred &&
         error_message == other.error_message && raw_stop_reason == other.raw_stop_reason &&
         end_turn == other.end_turn && timestamp == other.timestamp &&
-        duration_ms == other.duration_ms && reasoning_details == other.reasoning_details
+        duration_ms == other.duration_ms && reasoning_details == other.reasoning_details &&
+        logprobs == other.logprobs
     end
 
     def copy_with(
@@ -347,11 +350,12 @@ module LLM::AI
       end_turn : Bool = @end_turn,
       duration_ms : Int64? = @duration_ms,
       reasoning_details : JSON::Any? = @reasoning_details,
+      logprobs : JSON::Any? = @logprobs,
     ) : AssistantMessage
       AssistantMessage.new(
         content, provider, model, timestamp, api, response_model, response_id,
         provider_thinking_level, thinking_level, usage, stop_reason, deferred,
-        error_message, raw_stop_reason, end_turn, duration_ms, reasoning_details,
+        error_message, raw_stop_reason, end_turn, duration_ms, reasoning_details, logprobs,
       )
     end
 

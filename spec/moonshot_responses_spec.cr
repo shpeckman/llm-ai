@@ -6,7 +6,7 @@ private def responses_model(base_url : String = "http://127.0.0.1") : LLM::AI::M
   LLM::AI::Model.new("kimi-k3", "Kimi K3", "moonshot-responses", base_url, LLM::AI::ApiKind::MoonshotResponses,
     [LLM::AI::InputKind::Text], 1_048_576, 131_072, true,
     LLM::AI::ModelCost.new(3.0, 15.0, 0.3, 3.0, 6.0),
-    {"low" => "low", "high" => "high", "max" => "max"}, false, nil, LLM::AI::Compat.new)
+    {"low" => "low", "high" => "high", "max" => "max"} of String => String?, false, nil, LLM::AI::Compat.new)
 end
 
 private def responses_auth : LLM::AI::Auth::AuthResult

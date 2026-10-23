@@ -1,0 +1,31 @@
+[
+ {
+  "id": "kimi-k3",
+  "name": "Kimi K3",
+  "base_url": "https://api.moonshot.ai/v1",
+  "api": "moonshot_responses",
+  "input": [
+   "text",
+   "image"
+  ],
+  "context_window": 1048576,
+  "max_tokens": 131072,
+  "reasoning": true,
+  "thinking_level_map": {
+   "minimal": "low",
+   "low": "low",
+   "medium": "high",
+   "high": "high",
+   "xhigh": "max",
+   "max": "max"
+  },
+  "prompt_cache": false,
+  "cost": {
+   "input": 3.0,
+   "output": 15.0,
+   "cache_read": 0.3,
+   "cache_write": 3.0,
+   "cache_write_1h": 6.0
+  }
+ }
+]

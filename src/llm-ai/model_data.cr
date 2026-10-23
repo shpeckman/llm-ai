@@ -41,6 +41,8 @@ module LLM::AI::ModelData
              {{ read_file("#{__DIR__}/data/moonshot.json") }}
            when "moonshot-anthropic"
              {{ read_file("#{__DIR__}/data/moonshot-anthropic.json") }}
+           when "moonshot-responses"
+             {{ read_file("#{__DIR__}/data/moonshot-responses.json") }}
            when "anthropic"
              {{ read_file("#{__DIR__}/data/anthropic.json") }}
            else

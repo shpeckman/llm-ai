@@ -27,6 +27,9 @@ All functionality lives under the `LLM::AI` module.
 - Request/response/event hooks for observability.
 - Client identity: `User-Agent` and provider attribution headers.
 - A scripted faux provider for tests.
+- Moonshot REST endpoints beyond chat: models, balance, files, token
+  estimation, signature verification, web search/fetch, and batches via
+  `Rest::Client` (`Models#client`).
 
 ## Requirements
 
@@ -285,6 +288,12 @@ Field                                 | Meaning
 `max_retry_delay_ms`                  | Longest server-requested retry wait (default 60 000); `0` removes the cap.
 `identity`                            | `ClientIdentity` (below).
 `sampling_params`                     | Raw per-request parameters merged last.
+`response_format`                     | Response format / JSON schema (compat-gated).
+`stop`                                | Stop sequences (compat-gated).
+`prediction`                          | Predicted-output content (compat-gated).
+`logprobs` / `top_logprobs`           | Token log probabilities (compat-gated); collected on `AssistantMessage#logprobs`.
+`prompt_cache_key` / `prompt_cache_options` | Prompt-cache hints (compat-gated).
+`safety_identifier`                   | Safety identifier (compat-gated).
 `hooks`                               | `StreamHooks` callbacks (below).
 
 ## Examples

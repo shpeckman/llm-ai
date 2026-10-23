@@ -726,6 +726,12 @@ module LLM::AI
     getter allowed_fallback_models : Array(FallbackModel)
     getter requires_tool_result_name : Bool
     getter requires_assistant_after_tool_result : Bool
+    getter supports_response_format : Bool
+    getter supports_stop : Bool
+    getter supports_prediction : Bool
+    getter supports_logprobs : Bool
+    getter supports_prompt_cache_key : Bool
+    getter supports_safety_identifier : Bool
 
     def initialize(
       @max_tokens_field : Symbol = :max_completion_tokens,
@@ -749,6 +755,12 @@ module LLM::AI
       @allowed_fallback_models : Array(FallbackModel) = [] of FallbackModel,
       @requires_tool_result_name : Bool = false,
       @requires_assistant_after_tool_result : Bool = false,
+      @supports_response_format : Bool = false,
+      @supports_stop : Bool = false,
+      @supports_prediction : Bool = false,
+      @supports_logprobs : Bool = false,
+      @supports_prompt_cache_key : Bool = false,
+      @supports_safety_identifier : Bool = false,
     )
     end
   end

@@ -739,6 +739,7 @@ module LLM::AI
     getter supports_logprobs : Bool
     getter supports_prompt_cache_key : Bool
     getter supports_safety_identifier : Bool
+    getter supports_output_config_effort : Bool
     @[JSON::Field(converter: LLM::AI::SymbolName)]
     getter anthropic_auth_scheme : Symbol
 
@@ -770,6 +771,7 @@ module LLM::AI
       @supports_logprobs : Bool = false,
       @supports_prompt_cache_key : Bool = false,
       @supports_safety_identifier : Bool = false,
+      @supports_output_config_effort : Bool = false,
       @anthropic_auth_scheme : Symbol = :x_api_key,
     )
     end

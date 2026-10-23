@@ -26,6 +26,7 @@ module LLM::AI::Api::OpenAICompletions
     property streamed_details : Array(JSON::Any)
     property duration_ms : Int64?
     property reasoning_details : JSON::Any?
+    property logprobs : Array(JSON::Any)
 
     def initialize(@model : Model, @options : StreamOptions, @stream : MessageStream)
       @blocks = [] of ContentBlock

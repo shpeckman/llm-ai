@@ -17,13 +17,17 @@ module LLM::AI::Rest
       Balance.from_json(request(entry))
     end
 
-    def upload_file(path : String | Path, purpose : String) : FileObject
+    def upload_file(path : String | Path, purpose : String, expires_after_seconds : Int32? = nil) : FileObject
       entry = endpoint(:upload_file)
       body = IO::Memory.new
       content_type = ""
       HTTP::FormData.build(body) do |form|
         content_type = form.content_type
         form.field("purpose", purpose)
+        if seconds = expires_after_seconds
+          form.field("expires_after[anchor]", "created_at")
+          form.field("expires_after[seconds]", seconds.to_s)
+        end
         File.open(path) do |file|
           metadata = HTTP::FormData::FileMetadata.new(filename: File.basename(path.to_s))
           form.file("file", file, metadata)
@@ -126,6 +130,31 @@ module LLM::AI::Rest
         end
       end
       FetchResult.from_json(request(entry, payload))
+    end
+
+    def deepseek_search(query : String, count : Int32? = nil, need_content : Bool? = nil,
+                        ori_question : String? = nil, localization : String? = nil) : Array(DeepSeekSearchResult)
+      entry = endpoint(:deepseek_search)
+      payload = JSON.build do |json|
+        json.object do
+          json.field "query", query
+          json.field "count", count if count
+          json.field "need_content", need_content unless need_content.nil?
+          json.field "ori_question", ori_question if ori_question
+          json.field "localization", localization if localization
+        end
+      end
+      DeepSeekSearchResults.from_json(request(entry, payload)).results
+    end
+
+    def deepseek_fetch(url : String) : DeepSeekFetchResult
+      entry = endpoint(:deepseek_fetch)
+      payload = JSON.build do |json|
+        json.object do
+          json.field "url", url
+        end
+      end
+      DeepSeekFetchResult.from_json(request(entry, payload))
     end
 
     def create_batch(input_file_id : String, completion_window : String,

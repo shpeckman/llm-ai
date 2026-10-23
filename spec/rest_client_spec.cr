@@ -31,7 +31,7 @@ describe LLM::AI::Rest::Client do
       models.size.should eq 1
       models[0].id.should eq "kimi-k3"
       models[0].context_length.should eq 262144
-      models[0].supports_reasoning.should eq true
+      models[0].supports_reasoning.should be_true
       api.requests[0][0].should eq "GET"
       api.requests[0][1].should eq "/v1/models"
       api.last_headers.not_nil!["Authorization"].should eq "Bearer test-key"
@@ -137,7 +137,7 @@ describe LLM::AI::Rest::Client do
       payload = JSON.parse(api.requests[0][2])
       payload["text_query"].should eq "crystal lang"
       payload["limit"].should eq 3
-      payload["include_content"].should eq true
+      payload["include_content"].should be_true
 
       api.serve(%({"search_results":[{"authority":"high","date":"d","icon":"i","mime":"m","site_name":"s","snippet":"sn","title":"t","url":"u","chunks":[{"text":"c","score":0.9}]}]}), content_type: "application/json")
       pro = client.web_search_pro("crystal", sites: ["crystal-lang.org"], time_window: {"2026-01-01", nil})

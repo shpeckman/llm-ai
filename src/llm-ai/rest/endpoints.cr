@@ -4,22 +4,22 @@ module LLM::AI::Rest
     record Entry, method : String, path : String
 
     MOONSHOT = {
-      list_models:       Entry.new("GET", "/v1/models"),
-      balance:           Entry.new("GET", "/v1/users/me/balance"),
-      upload_file:       Entry.new("POST", "/v1/files"),
-      list_files:        Entry.new("GET", "/v1/files"),
-      get_file:          Entry.new("GET", "/v1/files"),
-      delete_file:       Entry.new("DELETE", "/v1/files"),
-      file_content:      Entry.new("GET", "/v1/files"),
-      estimate_tokens:   Entry.new("POST", "/v1/tokenizers/estimate-token-count"),
-      verify_signature:  Entry.new("POST", "/v1/signatures/verify"),
-      web_search:        Entry.new("POST", "/v1/tools/search"),
-      web_search_pro:    Entry.new("POST", "/v1/tools/search_pro"),
-      fetch:             Entry.new("POST", "/v1/tools/fetch"),
-      create_batch:      Entry.new("POST", "/v1/batches"),
-      list_batches:      Entry.new("GET", "/v1/batches"),
-      get_batch:         Entry.new("GET", "/v1/batches"),
-      cancel_batch:      Entry.new("POST", "/v1/batches"),
+      list_models:      Entry.new("GET", "/v1/models"),
+      balance:          Entry.new("GET", "/v1/users/me/balance"),
+      upload_file:      Entry.new("POST", "/v1/files"),
+      list_files:       Entry.new("GET", "/v1/files"),
+      get_file:         Entry.new("GET", "/v1/files"),
+      delete_file:      Entry.new("DELETE", "/v1/files"),
+      file_content:     Entry.new("GET", "/v1/files"),
+      estimate_tokens:  Entry.new("POST", "/v1/tokenizers/estimate-token-count"),
+      verify_signature: Entry.new("POST", "/v1/signatures/verify"),
+      web_search:       Entry.new("POST", "/v1/tools/search"),
+      web_search_pro:   Entry.new("POST", "/v1/tools/search_pro"),
+      fetch:            Entry.new("POST", "/v1/tools/fetch"),
+      create_batch:     Entry.new("POST", "/v1/batches"),
+      list_batches:     Entry.new("GET", "/v1/batches"),
+      get_batch:        Entry.new("GET", "/v1/batches"),
+      cancel_batch:     Entry.new("POST", "/v1/batches"),
     }
 
     TABLES = {

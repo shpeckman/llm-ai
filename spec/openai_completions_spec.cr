@@ -536,7 +536,7 @@ describe LLM::AI::Api::OpenAICompletions do
     payload["response_format"]["type"].should eq "json_object"
     payload["stop"].as_a.map(&.as_s).should eq ["END", "STOP"]
     payload["prediction"]["content"].should eq "expected"
-    payload["logprobs"].should eq true
+    payload["logprobs"].should be_true
     payload["top_logprobs"].should eq 5
     payload["prompt_cache_key"].should eq "session-1"
     payload["prompt_cache_options"]["retention"].should eq "1h"

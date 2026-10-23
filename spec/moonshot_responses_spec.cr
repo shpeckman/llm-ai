@@ -160,7 +160,7 @@ describe LLM::AI::Api::MoonshotResponses do
     payload = JSON.parse(LLM::AI::Api::MoonshotResponses.build_payload(responses_model, context, options))
     payload["model"].should eq "kimi-k3"
     payload["instructions"].should eq "be nice"
-    payload["stream"].should eq true
+    payload["stream"].should be_true
     payload["max_output_tokens"].should eq 17_408
     payload["reasoning"]["effort"].should eq "high"
     payload["text"]["format"]["name"].should eq "out"

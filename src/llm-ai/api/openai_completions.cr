@@ -571,7 +571,7 @@ module LLM::AI::Api::OpenAICompletions
       end
       if model.reasoning
         case model.compat.thinking_format
-        when :deepseek
+        when :toggle
           if resolved.thinking_enabled
             json.field "thinking" do
               json.object do

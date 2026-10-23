@@ -91,6 +91,12 @@ end
 | `anthropic`   | Anthropic        | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-opus-4-5`, `claude-sonnet-4-6`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
 | `kimi-coding` | Kimi For Coding  | `kimi-for-coding`, `kimi-for-coding-highspeed`                                                                                                                                                       |
 | `moonshot`    | Moonshot         | `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`, `kimi-k2.6`                                                                                                                                 |
+| `moonshot-anthropic` | Moonshot (Anthropic API) | Same Kimi models over Moonshot's Anthropic-compatible endpoint                                                                                                                        |
+| `moonshot-responses` | Moonshot (Responses API) | `kimi-k3` over Moonshot's Responses endpoint                                                                                                                                          |
+
+The three Moonshot providers share the `MOONSHOT_API_KEY` credential and
+differ only in wire protocol: OpenAI chat completions, Anthropic messages,
+and the Responses API.
 
 Model metadata (context window, max tokens, pricing, and per-model
 compatibility flags) is data-driven and loaded from

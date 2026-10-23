@@ -517,10 +517,12 @@ The request signature flow pairs with streaming: send a nonce via
 - `LLM::AI::Rest::Client` — `#list_models`, `#balance`, `#upload_file`,
   `#list_files`, `#get_file`, `#delete_file`, `#file_content`,
   `#estimate_tokens`, `#verify_signature`, `#web_search`, `#web_search_pro`,
-  `#fetch`, `#create_batch`, `#list_batches`, `#get_batch`, `#cancel_batch`;
+  `#fetch`, `#deepseek_search`, `#deepseek_fetch`, `#create_batch`,
+  `#list_batches`, `#get_batch`, `#cancel_batch`;
   result types under `LLM::AI::Rest` (`Balance`, `RemoteModel`, `FileObject`,
   `TokenEstimate`, `SignatureVerification`, `SearchResult`, `SearchProResult`,
-  `FetchResult`, `Batch`, `BatchList`).
+  `FetchResult`, `DeepSeekSearchResult`, `DeepSeekFetchResult`, `Batch`,
+  `BatchList`).
 - `LLM::AI::MessageStream` — `#each`, `#result`, `#abort`.
 - `LLM::AI::Context`, `LLM::AI::Tool`, `LLM::AI::StreamOptions`,
   `LLM::AI::StreamHooks`.

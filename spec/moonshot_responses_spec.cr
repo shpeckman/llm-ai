@@ -34,7 +34,7 @@ private def text_item_events(output_index : Int32, deltas : Array(String)) : Arr
   events
 end
 
-describe LLM::AI::Api::MoonshotResponses do
+describe "LLM::AI::Api::Responses (moonshot flavor)" do
   it "streams text and completes with usage" do
     completed = sse_event("response.completed", {
       "type"     => "response.completed",

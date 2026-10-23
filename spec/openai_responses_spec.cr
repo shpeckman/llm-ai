@@ -35,7 +35,7 @@ private def openai_responses_text_events(output_index : Int32, deltas : Array(St
   events
 end
 
-describe LLM::AI::Api::OpenAIResponses do
+describe "LLM::AI::Api::Responses (openai flavor)" do
   it "streams text and completes with usage" do
     completed = openai_responses_event("response.completed", {
       "type"     => "response.completed",

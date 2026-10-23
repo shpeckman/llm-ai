@@ -50,6 +50,7 @@ module LLM::AI
   enum ApiKind
     OpenaiCompletions
     AnthropicMessages
+    MoonshotResponses
   end
 
   enum InputKind

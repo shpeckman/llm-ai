@@ -113,10 +113,10 @@ describe LLM::AI::Api::OpenAIResponses do
 
   it "dispatches on the data type when the SSE event name is missing" do
     events = [
-      %<data: {"type":"response.output_item.added","output_index":0,"item":{"type":"message","id":"msg_1"}}>,
-      %<data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"hi"}>,
-      %<data: {"type":"response.output_item.done","output_index":0,"item":{"type":"message","id":"msg_1"}}>,
-      %<data: {"type":"response.completed","response":{"id":"resp_5","status":"completed","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}>,
+      %(data: {"type":"response.output_item.added","output_index":0,"item":{"type":"message","id":"msg_1"}}),
+      %(data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"hi"}),
+      %(data: {"type":"response.output_item.done","output_index":0,"item":{"type":"message","id":"msg_1"}}),
+      %(data: {"type":"response.completed","response":{"id":"resp_5","status":"completed","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}),
     ]
     api = MockApi.new.serve(openai_responses_sse(events)).start
     begin

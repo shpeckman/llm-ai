@@ -320,6 +320,22 @@ describe LLM::AI::Api::AnthropicMessages do
     payload.as_h.has_key?("temperature").should be_false
   end
 
+  it "sends output_config effort for output-config models" do
+    model = anthropic_model_with_compat(LLM::AI::Compat.new(supports_output_config_effort: true))
+    payload = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(
+      model, anthropic_context, LLM::AI::StreamOptions.new(thinking_level: "high"), false))
+    payload["thinking"]["type"].should eq "enabled"
+    payload["output_config"]["effort"].should eq "high"
+
+    disabled = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(
+      model, anthropic_context, LLM::AI::StreamOptions.new, false))
+    disabled.as_h.has_key?("output_config").should be_false
+
+    unflagged = JSON.parse(LLM::AI::Api::AnthropicMessages.build_payload(
+      anthropic_model, anthropic_context, LLM::AI::StreamOptions.new(thinking_level: "high"), false))
+    unflagged.as_h.has_key?("output_config").should be_false
+  end
+
   it "replays redacted thinking and converts signatureless thinking to text" do
     assistant = LLM::AI::AssistantMessage.new(
       [LLM::AI::ThinkingContent.new("[Reasoning redacted]", "enc", true), LLM::AI::ThinkingContent.new("thought", nil)] of LLM::AI::ContentBlock,

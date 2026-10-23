@@ -116,7 +116,7 @@ module LLM::AI::Api::AnthropicMessages
   end
 
   private def self.run(model : Model, context : Context, options : StreamOptions, auth : Auth::AuthResult, abort : AbortHandle?, stream : MessageStream) : Nil
-    assert_request_auth(auth)
+    assert_request_auth(auth, model)
     oauth = oauth_mode(auth)
     state = StreamState.new(model, options, context.tools, oauth, stream)
     emit(StreamEvent::Start.new(snapshot(state)), state)

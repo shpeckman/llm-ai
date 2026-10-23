@@ -612,7 +612,7 @@ module LLM::AI::Api::OpenAICompletions
         json.field "role", "system"
         json.field "tools" do
           json.array do
-            added.each { |tool| kimi_tool_definition(json, tool) }
+            added.each { |tool| inline_tool_definition(json, tool) }
           end
         end
       end

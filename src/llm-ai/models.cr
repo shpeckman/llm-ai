@@ -122,5 +122,12 @@ module LLM::AI
     def chat(model : Model, context : Context, options : StreamOptions? = nil, abort : AbortHandle? = nil) : AssistantMessage
       stream(model, context, options, abort).result
     end
+
+    def client(provider_id : String, api_key : String? = nil, identity : ClientIdentity? = nil, abort : AbortHandle? = nil) : Rest::Client
+      provider = provider(provider_id)
+      overrides = api_key.presence.try { |key| Auth::AuthOverrides.new(api_key: key) }
+      auth_result = Auth.resolve(provider_id, provider.auth, @store, @ctx, overrides)
+      Rest::Client.new(provider, auth_result, identity, abort: abort)
+    end
   end
 end

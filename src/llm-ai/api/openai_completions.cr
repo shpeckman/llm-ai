@@ -572,13 +572,13 @@ module LLM::AI::Api::OpenAICompletions
       if model.reasoning
         case model.compat.thinking_format
         when :deepseek
-          if effort = resolved.effort
+          if resolved.thinking_enabled
             json.field "thinking" do
               json.object do
                 json.field "type", "enabled"
               end
             end
-            json.field "reasoning_effort", effort
+            json.field "reasoning_effort", resolved.effort || "high"
           else
             off = model.thinking_level_map["off"]?
             unless model.thinking_level_map.has_key?("off") && off.nil?

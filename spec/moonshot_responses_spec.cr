@@ -59,7 +59,7 @@ describe LLM::AI::Api::MoonshotResponses do
     api = MockApi.new.serve(body).start
     begin
       model = responses_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::MoonshotResponses.stream(model, responses_context, LLM::AI::StreamOptions.new, responses_auth, nil)
+      stream = LLM::AI::Api::Responses.stream(model, responses_context, LLM::AI::StreamOptions.new, responses_auth, nil)
       events = [] of LLM::AI::StreamEvent
       stream.each { |event| events << event }
       events.first.should be_a(LLM::AI::StreamEvent::Start)
@@ -95,7 +95,7 @@ describe LLM::AI::Api::MoonshotResponses do
     api = MockApi.new.serve(responses_sse(events)).start
     begin
       model = responses_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::MoonshotResponses.stream(model, responses_context, LLM::AI::StreamOptions.new, responses_auth, nil)
+      stream = LLM::AI::Api::Responses.stream(model, responses_context, LLM::AI::StreamOptions.new, responses_auth, nil)
       result = stream.result
       result.stop_reason.should eq LLM::AI::StopReason::ToolUse
       thinking = result.content.select(LLM::AI::ThinkingContent)
@@ -116,7 +116,7 @@ describe LLM::AI::Api::MoonshotResponses do
     api = MockApi.new.serve(responses_sse(events)).start
     begin
       model = responses_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::MoonshotResponses.stream(model, responses_context, LLM::AI::StreamOptions.new, responses_auth, nil)
+      stream = LLM::AI::Api::Responses.stream(model, responses_context, LLM::AI::StreamOptions.new, responses_auth, nil)
       result = stream.result
       result.stop_reason.should eq LLM::AI::StopReason::Length
     ensure
@@ -131,7 +131,7 @@ describe LLM::AI::Api::MoonshotResponses do
     api = MockApi.new.serve(failed).start
     begin
       model = responses_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::MoonshotResponses.stream(model, responses_context, LLM::AI::StreamOptions.new, responses_auth, nil)
+      stream = LLM::AI::Api::Responses.stream(model, responses_context, LLM::AI::StreamOptions.new, responses_auth, nil)
       expect_raises(LLM::AI::ModelsError, /boom/) { stream.result }
     ensure
       api.close
@@ -157,7 +157,7 @@ describe LLM::AI::Api::MoonshotResponses do
       response_format: JSON.parse(%({"type":"json_schema","name":"out","schema":{"type":"object"}})),
       prompt_cache_key: "session-1",
       safety_identifier: "user-42")
-    payload = JSON.parse(LLM::AI::Api::MoonshotResponses.build_payload(responses_model, context, options))
+    payload = JSON.parse(LLM::AI::Api::Responses.build_payload(responses_model, context, options))
     payload["model"].should eq "kimi-k3"
     payload["instructions"].should eq "be nice"
     payload["stream"].should be_true

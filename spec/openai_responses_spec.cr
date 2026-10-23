@@ -60,7 +60,7 @@ describe LLM::AI::Api::OpenAIResponses do
     api = MockApi.new.serve(body).start
     begin
       model = openai_responses_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::OpenAIResponses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
+      stream = LLM::AI::Api::Responses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
       events = [] of LLM::AI::StreamEvent
       stream.each { |event| events << event }
       events.first.should be_a(LLM::AI::StreamEvent::Start)
@@ -96,7 +96,7 @@ describe LLM::AI::Api::OpenAIResponses do
     api = MockApi.new.serve(openai_responses_sse(events)).start
     begin
       model = openai_responses_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::OpenAIResponses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
+      stream = LLM::AI::Api::Responses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
       result = stream.result
       result.stop_reason.should eq LLM::AI::StopReason::ToolUse
       thinking = result.content.select(LLM::AI::ThinkingContent)
@@ -121,7 +121,7 @@ describe LLM::AI::Api::OpenAIResponses do
     api = MockApi.new.serve(openai_responses_sse(events)).start
     begin
       model = openai_responses_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::OpenAIResponses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
+      stream = LLM::AI::Api::Responses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
       result = stream.result
       result.stop_reason.should eq LLM::AI::StopReason::Stop
       result.content.select(LLM::AI::TextContent).map(&.text).join.should eq "hi"
@@ -140,7 +140,7 @@ describe LLM::AI::Api::OpenAIResponses do
     api = MockApi.new.serve(openai_responses_sse(events)).start
     begin
       model = openai_responses_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::OpenAIResponses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
+      stream = LLM::AI::Api::Responses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
       result = stream.result
       result.stop_reason.should eq LLM::AI::StopReason::Stop
       result.content.select(LLM::AI::TextContent).map(&.text).join.should eq "done"
@@ -155,7 +155,7 @@ describe LLM::AI::Api::OpenAIResponses do
     api = MockApi.new.serve(openai_responses_sse(events)).start
     begin
       model = openai_responses_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::OpenAIResponses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
+      stream = LLM::AI::Api::Responses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
       result = stream.result
       result.stop_reason.should eq LLM::AI::StopReason::Length
     ensure
@@ -170,7 +170,7 @@ describe LLM::AI::Api::OpenAIResponses do
     api = MockApi.new.serve(failed).start
     begin
       model = openai_responses_model("http://127.0.0.1:#{api.port}")
-      stream = LLM::AI::Api::OpenAIResponses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
+      stream = LLM::AI::Api::Responses.stream(model, openai_responses_context, LLM::AI::StreamOptions.new, openai_responses_auth, nil)
       expect_raises(LLM::AI::ModelsError, /boom/) { stream.result }
     ensure
       api.close
@@ -197,7 +197,7 @@ describe LLM::AI::Api::OpenAIResponses do
       tool_choice: "auto",
       user_id: "user-42",
       prompt_cache_key: "session-1")
-    payload = JSON.parse(LLM::AI::Api::OpenAIResponses.build_payload(openai_responses_model, context, options))
+    payload = JSON.parse(LLM::AI::Api::Responses.build_payload(openai_responses_model, context, options))
     payload["model"].should eq "deepseek-flash"
     payload["instructions"].should eq "be nice"
     payload["stream"].should be_true
@@ -222,10 +222,10 @@ describe LLM::AI::Api::OpenAIResponses do
   end
 
   it "defaults reasoning effort to high and omits reasoning when thinking is off" do
-    enabled = JSON.parse(LLM::AI::Api::OpenAIResponses.build_payload(
+    enabled = JSON.parse(LLM::AI::Api::Responses.build_payload(
       openai_responses_model, openai_responses_context, LLM::AI::StreamOptions.new(thinking_enabled: true)))
     enabled["reasoning"]["effort"].should eq "high"
-    disabled = JSON.parse(LLM::AI::Api::OpenAIResponses.build_payload(
+    disabled = JSON.parse(LLM::AI::Api::Responses.build_payload(
       openai_responses_model, openai_responses_context, LLM::AI::StreamOptions.new))
     disabled.as_h.has_key?("reasoning").should be_false
   end

@@ -462,12 +462,13 @@ DeepSeek's on-disk context cache is automatic. To get cache hits, keep the
 system prompt and tool definitions byte-stable across turns; cached input tokens
 are reported as `usage.cache_read` and billed at the model's `cache_read` rate.
 
-## Moonshot REST endpoints
+## REST endpoints
 
 `Models#client` returns a `Rest::Client` for a provider's non-streaming REST
 API. Auth resolution matches streaming (override → stored credential →
-environment). Moonshot registers the full endpoint set; other providers raise
-`ModelsError` with kind `"capability"`.
+environment). Moonshot registers the full endpoint set; DeepSeek registers
+search, fetch, and file endpoints; other providers raise `ModelsError` with
+kind `"capability"`.
 
 ```crystal
 client = models.client("moonshot")
@@ -488,6 +489,20 @@ page = client.fetch("https://crystal-lang.org")
 
 content = client.file_content(file.id)
 client.delete_file(file.id)
+```
+
+DeepSeek's client covers its Search & Fetch APIs (billed per successful
+request) and its image Files API (`purpose` must be `"user_data"`):
+
+```crystal
+client = models.client("deepseek")
+
+results = client.deepseek_search("deepseek v4", count: 5, need_content: true)
+page = client.deepseek_fetch("https://api-docs.deepseek.com")
+
+image = client.upload_file("chart.png", "user_data", expires_after_seconds: 86400)
+files = client.list_files
+client.delete_file(image.id)
 ```
 
 The request signature flow pairs with streaming: send a nonce via

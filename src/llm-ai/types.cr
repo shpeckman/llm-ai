@@ -909,11 +909,21 @@ module LLM::AI
       thinking_budgets : Hash(String, Int32)? = @thinking_budgets,
       max_retry_delay_ms : Int32? = @max_retry_delay_ms,
       identity : ClientIdentity? = @identity,
+      response_format : JSON::Any? = @response_format,
+      stop : Array(String)? = @stop,
+      prediction : JSON::Any? = @prediction,
+      logprobs : Bool? = @logprobs,
+      top_logprobs : Int32? = @top_logprobs,
+      prompt_cache_key : String? = @prompt_cache_key,
+      prompt_cache_options : JSON::Any? = @prompt_cache_options,
+      safety_identifier : String? = @safety_identifier,
     ) : StreamOptions
       StreamOptions.new(
         max_tokens, temperature, thinking_level, thinking_enabled, effort, thinking_display,
         tool_choice, headers, cache_retention, max_retries, timeout_ms, user_id, hooks,
         sampling_params, api_key, session_id, thinking_budgets, max_retry_delay_ms, identity,
+        response_format, stop, prediction, logprobs, top_logprobs, prompt_cache_key,
+        prompt_cache_options, safety_identifier,
       )
     end
   end

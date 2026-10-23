@@ -57,7 +57,7 @@ module LLM::AI::Api::OpenAIResponses
     data = JSON.parse(event.data)
     state.options.hooks.try(&.on_provider_event).try &.call(data, state.model)
     name = event.name
-    if name.empty? || name == "message"
+    if name.nil? || name.empty? || name == "message"
       name = data["type"]?.try(&.as_s?) || ""
     end
     case name

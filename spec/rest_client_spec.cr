@@ -179,6 +179,7 @@ describe LLM::AI::Rest::Client do
       list.data.size.should eq 1
       api.requests[1][1].should eq "/v1/batches?after=b0&limit=10"
 
+      api.serve(batch_json, content_type: "application/json")
       client.get_batch("b1").status.should eq "validating"
       api.requests[2][1].should eq "/v1/batches/b1"
 

@@ -736,6 +736,8 @@ module LLM::AI
     getter supports_logprobs : Bool
     getter supports_prompt_cache_key : Bool
     getter supports_safety_identifier : Bool
+    @[JSON::Field(converter: LLM::AI::SymbolName)]
+    getter anthropic_auth_scheme : Symbol
 
     def initialize(
       @max_tokens_field : Symbol = :max_completion_tokens,

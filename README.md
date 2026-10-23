@@ -91,6 +91,8 @@ end
 |---------------|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `faux`        | Faux (in-memory) | `faux-chat`, `faux-error`                                                                                                                                                                            |
 | `deepseek`    | DeepSeek         | `deepseek-flash`, `deepseek-v4-pro`                                                                                                                                                                  |
+| `deepseek-anthropic` | DeepSeek (Anthropic API) | Same DeepSeek models over DeepSeek's Anthropic-compatible endpoint                                                                                                                      |
+| `deepseek-responses` | DeepSeek (Responses API) | Same DeepSeek models over DeepSeek's OpenAI Responses-compatible endpoint                                                                                                              |
 | `anthropic`   | Anthropic        | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-opus-4-5`, `claude-sonnet-4-6`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
 | `kimi-coding` | Kimi For Coding  | `kimi-for-coding`, `kimi-for-coding-highspeed`                                                                                                                                                       |
 | `moonshot`    | Moonshot         | `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`, `kimi-k2.6`                                                                                                                                 |
@@ -99,7 +101,15 @@ end
 
 The three Moonshot providers share the `MOONSHOT_API_KEY` credential and
 differ only in wire protocol: OpenAI chat completions, Anthropic messages,
-and the Responses API.
+and the Responses API. The three DeepSeek providers likewise share
+`DEEPSEEK_API_KEY` across the same three wire protocols.
+
+DeepSeek thinking effort is controlled with `thinking_level`: levels map to
+DeepSeek's `low`/`high`/`max` efforts (`medium`→`high`, `xhigh`→`high`), and
+enabling thinking without a level defaults to `high`. Note that DeepSeek
+bills peak hours (01:00–04:00 and 06:00–10:00 UTC on weekdays, excluding
+Chinese public holidays) at twice the off-peak rates; the cost data in
+`src/llm-ai/data/deepseek*.json` reflects the off-peak rates.
 
 Model metadata (context window, max tokens, pricing, and per-model
 compatibility flags) is data-driven and loaded from

@@ -1,0 +1,151 @@
+[
+ {
+  "id": "kimi-k3",
+  "name": "Kimi K3",
+  "base_url": "https://api.moonshot.ai/anthropic",
+  "api": "anthropic_messages",
+  "input": [
+   "text",
+   "image"
+  ],
+  "context_window": 1048576,
+  "max_tokens": 65536,
+  "reasoning": true,
+  "thinking_level_map": {
+   "minimal": "low",
+   "low": "low",
+   "medium": "high",
+   "high": "high",
+   "xhigh": "max",
+   "max": "max"
+  },
+  "prompt_cache": false,
+  "cost": {
+   "input": 3.0,
+   "output": 15.0,
+   "cache_read": 0.3,
+   "cache_write": 3.0,
+   "cache_write_1h": 6.0
+  },
+  "compat": {
+   "anthropic_auth_scheme": "bearer",
+   "supports_eager_tool_input_streaming": false,
+   "supports_long_cache_retention": false,
+   "supports_cache_control_on_tools": false,
+   "supports_mid_convo_system_messages": false,
+   "supports_mid_convo_tool_changes": false,
+   "supports_mid_convo_effort": false
+  }
+ },
+ {
+  "id": "kimi-k2.7-code",
+  "name": "Kimi K2.7 Code",
+  "base_url": "https://api.moonshot.ai/anthropic",
+  "api": "anthropic_messages",
+  "input": [
+   "text",
+   "image"
+  ],
+  "context_window": 262144,
+  "max_tokens": 65536,
+  "reasoning": true,
+  "thinking_level_map": {
+   "minimal": "low",
+   "low": "low",
+   "medium": "high",
+   "high": "high",
+   "xhigh": "max",
+   "max": "max"
+  },
+  "prompt_cache": false,
+  "cost": {
+   "input": 0.95,
+   "output": 4.0,
+   "cache_read": 0.19,
+   "cache_write": 0.95
+  },
+  "compat": {
+   "anthropic_auth_scheme": "bearer",
+   "supports_eager_tool_input_streaming": false,
+   "supports_long_cache_retention": false,
+   "supports_cache_control_on_tools": false,
+   "supports_mid_convo_system_messages": false,
+   "supports_mid_convo_tool_changes": false,
+   "supports_mid_convo_effort": false
+  }
+ },
+ {
+  "id": "kimi-k2.7-code-highspeed",
+  "name": "Kimi K2.7 Code Highspeed",
+  "base_url": "https://api.moonshot.ai/anthropic",
+  "api": "anthropic_messages",
+  "input": [
+   "text",
+   "image"
+  ],
+  "context_window": 262144,
+  "max_tokens": 65536,
+  "reasoning": true,
+  "thinking_level_map": {
+   "minimal": "low",
+   "low": "low",
+   "medium": "high",
+   "high": "high",
+   "xhigh": "max",
+   "max": "max"
+  },
+  "prompt_cache": false,
+  "cost": {
+   "input": 1.9,
+   "output": 8.0,
+   "cache_read": 0.38,
+   "cache_write": 1.9
+  },
+  "compat": {
+   "anthropic_auth_scheme": "bearer",
+   "supports_eager_tool_input_streaming": false,
+   "supports_long_cache_retention": false,
+   "supports_cache_control_on_tools": false,
+   "supports_mid_convo_system_messages": false,
+   "supports_mid_convo_tool_changes": false,
+   "supports_mid_convo_effort": false
+  }
+ },
+ {
+  "id": "kimi-k2.6",
+  "name": "Kimi K2.6",
+  "base_url": "https://api.moonshot.ai/anthropic",
+  "api": "anthropic_messages",
+  "input": [
+   "text",
+   "image"
+  ],
+  "context_window": 262144,
+  "max_tokens": 65536,
+  "reasoning": true,
+  "thinking_level_map": {
+   "minimal": "low",
+   "low": "low",
+   "medium": "high",
+   "high": "high",
+   "xhigh": "max",
+   "max": "max"
+  },
+  "prompt_cache": false,
+  "cost": {
+   "input": 0.95,
+   "output": 4.0,
+   "cache_read": 0.16,
+   "cache_write": 0.95
+  },
+  "compat": {
+   "anthropic_auth_scheme": "bearer",
+   "supports_eager_tool_input_streaming": false,
+   "supports_long_cache_retention": false,
+   "supports_cache_control_on_tools": false,
+   "supports_mid_convo_system_messages": false,
+   "supports_mid_convo_tool_changes": false,
+   "supports_mid_convo_effort": false
+  }
+ }
+]

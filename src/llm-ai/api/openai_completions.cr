@@ -511,6 +511,36 @@ module LLM::AI::Api::OpenAICompletions
         json.field model.compat.max_tokens_field.to_s, max_tokens
       end
       json.field "temperature", resolved.temperature if resolved.temperature
+      if model.compat.supports_response_format && (format = options.response_format)
+        json.field "response_format" do
+          Jsonify.any(json, format)
+        end
+      end
+      if model.compat.supports_stop && (stop = options.stop) && !stop.empty?
+        json.field "stop", stop
+      end
+      if model.compat.supports_prediction && (prediction = options.prediction)
+        json.field "prediction" do
+          Jsonify.any(json, prediction)
+        end
+      end
+      if model.compat.supports_logprobs
+        json.field "logprobs", true if options.logprobs
+        if top = options.top_logprobs
+          json.field "top_logprobs", top
+        end
+      end
+      if model.compat.supports_prompt_cache_key
+        json.field "prompt_cache_key", options.prompt_cache_key
+        if cache_options = options.prompt_cache_options
+          json.field "prompt_cache_options" do
+            Jsonify.any(json, cache_options)
+          end
+        end
+      end
+      if model.compat.supports_safety_identifier && (safety = options.safety_identifier)
+        json.field "safety_identifier", safety
+      end
       if context.tools.empty?
         if has_tool_history(context)
           json.field "tools" do

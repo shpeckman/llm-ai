@@ -405,6 +405,8 @@ module LLM::AI::Api::AnthropicMessages
       end
       headers["user-agent"] = "claude-cli/#{CLAUDE_CODE_VERSION}"
       headers["x-app"] = "cli"
+    elsif model.compat.anthropic_auth_scheme == :bearer
+      headers["Authorization"] = "Bearer #{key}" if key = auth.auth.api_key
     elsif key = auth.auth.api_key
       headers["x-api-key"] = key
     end

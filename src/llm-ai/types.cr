@@ -20,7 +20,7 @@ module LLM::AI
       when "aborted"               then :aborted
       when "max_tokens"            then :max_tokens
       when "max_completion_tokens" then :max_completion_tokens
-      when "deepseek"              then :deepseek
+      when "toggle"                then :toggle
       when "openai"                then :openai
       when "none"                  then :none
       when "short"                 then :short

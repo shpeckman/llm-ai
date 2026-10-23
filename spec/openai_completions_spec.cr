@@ -579,7 +579,8 @@ describe LLM::AI::Api::OpenAICompletions do
       safety_identifier: "user-42",
     )
     payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, user_context, options))
-    ["response_format", "stop", "prediction", "logprobs", "top_logprobs",
+    payload["response_format"]["type"].should eq "json_object"
+    ["stop", "prediction", "logprobs", "top_logprobs",
      "prompt_cache_key", "prompt_cache_options", "safety_identifier"].each do |key|
       payload.as_h.has_key?(key).should be_false
     end

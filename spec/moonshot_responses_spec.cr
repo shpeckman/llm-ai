@@ -161,7 +161,7 @@ describe LLM::AI::Api::MoonshotResponses do
     payload["model"].should eq "kimi-k3"
     payload["instructions"].should eq "be nice"
     payload["stream"].should eq true
-    payload["max_output_tokens"].should eq 1024
+    payload["max_output_tokens"].should eq 17_408
     payload["reasoning"]["effort"].should eq "high"
     payload["text"]["format"]["name"].should eq "out"
     payload["prompt_cache_key"].should eq "session-1"

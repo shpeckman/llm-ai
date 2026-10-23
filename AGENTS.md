@@ -42,8 +42,8 @@ src/llm-ai/api/simple_options.cr      Resolve StreamOptions + thinking levels
 src/llm-ai/api/jsonify.cr         Serialize JSON::Any into a JSON::Builder
 src/llm-ai/api/openai_completions.cr  OpenAI Chat Completions wire adapter
 src/llm-ai/api/anthropic_messages.cr  Anthropic Messages wire adapter
-src/llm-ai/api/moonshot_responses.cr  Moonshot Responses API wire adapter
-src/llm-ai/api/openai_responses.cr    OpenAI Responses API wire adapter
+src/llm-ai/api/responses.cr          Responses API wire adapter (moonshot and
+                                  openai flavors, selected via Model#api)
 src/llm-ai/rest/types.cr            REST result types (Balance, FileObject,
                                     Batch, SearchResult, ...)
 src/llm-ai/rest/endpoints.cr        Per-provider REST endpoint tables
@@ -100,11 +100,11 @@ rename `Bool` getters to `?` and break the public API), `Lint/NotNil`
 - A provider registers a single `Provider` value (id, name, base URL, headers,
   auth, models, and a `stream` proc) in `Models.build`
   (`src/llm-ai/models.cr`).
-- Four wire adapters exist: `Api::OpenAICompletions` (DeepSeek, Kimi,
+- Three wire adapters exist: `Api::OpenAICompletions` (DeepSeek, Kimi,
   Moonshot, faux), `Api::AnthropicMessages` (Anthropic, moonshot-anthropic,
-  deepseek-anthropic), `Api::MoonshotResponses` (moonshot-responses), and
-  `Api::OpenAIResponses` (deepseek-responses). A provider's `stream` proc just
-  delegates to one of them.
+  deepseek-anthropic), and `Api::Responses` (moonshot-responses,
+  deepseek-responses; the moonshot/openai flavor is keyed on `Model#api`). A
+  provider's `stream` proc just delegates to one of them.
 - `Models#stream` always calls `Transform.normalize(context, model)` before
   handing the context to the provider, so adapters can assume a normalized
   message list.

@@ -11,7 +11,7 @@
     "thinking_level_map": {"minimal": "low", "low": "low", "medium": "high", "high": "high", "xhigh": "high", "max": "max"},
     "prompt_cache": false,
     "cost": {"input": 0.15, "output": 0.6, "cache_read": 0.003, "cache_write": 0.15},
-    "compat": {"max_tokens_field": "max_tokens", "thinking_format": "deepseek", "requires_reasoning_content_on_assistant_messages": true, "supports_store": false, "supports_response_format": true}
+    "compat": {"max_tokens_field": "max_tokens", "thinking_format": "toggle", "requires_reasoning_content_on_assistant_messages": true, "supports_store": false, "supports_response_format": true}
   },
   {
     "id": "deepseek-v4-pro",
@@ -25,6 +25,6 @@
     "thinking_level_map": {"minimal": "low", "low": "low", "medium": "high", "high": "high", "xhigh": "high", "max": "max"},
     "prompt_cache": false,
     "cost": {"input": 0.66, "output": 1.98, "cache_read": 0.022, "cache_write": 0.66},
-    "compat": {"max_tokens_field": "max_tokens", "thinking_format": "deepseek", "requires_reasoning_content_on_assistant_messages": true, "supports_store": false, "supports_response_format": true}
+    "compat": {"max_tokens_field": "max_tokens", "thinking_format": "toggle", "requires_reasoning_content_on_assistant_messages": true, "supports_store": false, "supports_response_format": true}
   }
 ]

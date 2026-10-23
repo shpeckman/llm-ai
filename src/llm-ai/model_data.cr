@@ -148,8 +148,8 @@ module LLM::AI::ModelData
       :max_tokens
     when "max_completion_tokens"
       :max_completion_tokens
-    when "deepseek"
-      :deepseek
+    when "toggle"
+      :toggle
     when "openai"
       :openai
     when "x_api_key"

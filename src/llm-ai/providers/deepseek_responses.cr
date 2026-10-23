@@ -10,6 +10,6 @@ module LLM::AI::DeepSeekResponsesProvider
   end
 
   private def self.stream_for(model : Model, context : Context, options : StreamOptions, auth : Auth::AuthResult, abort : AbortHandle?) : MessageStream
-    Api::OpenAIResponses.stream(model, context, options, auth, abort)
+    Api::Responses.stream(model, context, options, auth, abort)
   end
 end

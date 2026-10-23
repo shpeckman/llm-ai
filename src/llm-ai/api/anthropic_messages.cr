@@ -116,7 +116,7 @@ module LLM::AI::Api::AnthropicMessages
   end
 
   private def self.run(model : Model, context : Context, options : StreamOptions, auth : Auth::AuthResult, abort : AbortHandle?, stream : MessageStream) : Nil
-    assert_request_auth(auth)
+    assert_request_auth(auth, model)
     oauth = oauth_mode(auth)
     state = StreamState.new(model, options, context.tools, oauth, stream)
     emit(StreamEvent::Start.new(snapshot(state)), state)
@@ -448,7 +448,7 @@ module LLM::AI::Api::AnthropicMessages
     !key.nil? && key.includes?("sk-ant-oat")
   end
 
-  private def self.assert_request_auth(auth : Auth::AuthResult) : Nil
+  private def self.assert_request_auth(auth : Auth::AuthResult, model : Model) : Nil
     key = auth.auth.api_key
     return if key && !key.empty?
     if headers = auth.auth.headers
@@ -458,7 +458,7 @@ module LLM::AI::Api::AnthropicMessages
         return unless value.strip.empty?
       end
     end
-    raise ModelsError.new("auth", "No API key for provider: anthropic")
+    raise ModelsError.new("auth", "No API key for provider: #{model.provider}")
   end
 
   private def self.resolve_cache_retention(options : StreamOptions) : Symbol

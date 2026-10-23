@@ -1,7 +1,7 @@
-# src/llm-ai/api/moonshot_responses.cr
+# src/llm-ai/api/responses.cr
 require "json"
 
-module LLM::AI::Api::MoonshotResponses
+module LLM::AI::Api::Responses
   class StreamState
     getter model : Model
     getter options : StreamOptions
@@ -56,14 +56,18 @@ module LLM::AI::Api::MoonshotResponses
     return if event.data.empty?
     data = JSON.parse(event.data)
     state.options.hooks.try(&.on_provider_event).try &.call(data, state.model)
-    case event.name
+    name = event.name
+    if name.nil? || name.empty? || name == "message"
+      name = data["type"]?.try(&.as_s?) || ""
+    end
+    case name
     when "response.created", "response.in_progress"
       handle_response_snapshot(data, state)
     when "response.output_item.added"
       handle_item_added(data, state)
     when "response.output_text.delta"
       handle_text_delta(data, state)
-    when "response.reasoning_summary_text.delta"
+    when "response.reasoning_text.delta", "response.reasoning_summary_text.delta"
       handle_thinking_delta(data, state)
     when "response.function_call_arguments.delta"
       handle_args_delta(data, state, custom: false)
@@ -330,7 +334,7 @@ module LLM::AI::Api::MoonshotResponses
       state.model.provider,
       state.model.id,
       Time.utc,
-      api: "moonshot_responses",
+      api: api_label(state.model),
       response_model: state.response_model,
       response_id: state.response_id,
       thinking_level: state.options.thinking_level,
@@ -339,6 +343,10 @@ module LLM::AI::Api::MoonshotResponses
       error_message: state.error_message,
       duration_ms: state.duration_ms,
     )
+  end
+
+  private def self.api_label(model : Model) : String
+    model.api.moonshot_responses? ? "moonshot_responses" : "openai_responses"
   end
 
   private def self.emit(event : StreamEvent, state : StreamState) : Nil
@@ -367,6 +375,7 @@ module LLM::AI::Api::MoonshotResponses
   end
 
   private def self.payload(json : JSON::Builder, model : Model, context : Context, options : StreamOptions, resolved : ResolvedOptions) : Nil
+    moonshot = model.api.moonshot_responses?
     json.object do
       json.field "model", model.id
       if prompt = context.system_prompt
@@ -374,22 +383,38 @@ module LLM::AI::Api::MoonshotResponses
       end
       json.field "input" do
         json.array do
-          context.messages.each { |message| input_item(json, message) }
+          context.messages.each { |message| input_item(json, message, moonshot) }
         end
       end
       json.field "stream", true
       if max_tokens = resolved.max_tokens
         json.field "max_output_tokens", max_tokens
       end
-      if model.reasoning && (effort = resolved.effort)
+      if moonshot
+        if model.reasoning && (effort = resolved.effort)
+          json.field "reasoning" do
+            json.object do
+              json.field "effort", effort
+            end
+          end
+        end
+      elsif model.reasoning && resolved.thinking_enabled
         json.field "reasoning" do
           json.object do
-            json.field "effort", effort
+            json.field "effort", resolved.effort || "high"
           end
         end
       end
+      unless moonshot
+        json.field "temperature", resolved.temperature if resolved.temperature
+      end
       if format = options.response_format
-        if format["type"]?.try(&.as_s?) == "json_schema"
+        supported = if moonshot
+                      format["type"]?.try(&.as_s?) == "json_schema"
+                    else
+                      {"json_object", "json_schema"}.includes?(format["type"]?.try(&.as_s?))
+                    end
+        if supported
           json.field "text" do
             json.object do
               json.field "format" do
@@ -405,16 +430,23 @@ module LLM::AI::Api::MoonshotResponses
             context.tools.each { |tool| tool_definition(json, tool) }
           end
         end
-        json.field "tool_choice", "auto"
+        json.field "tool_choice", "auto" if moonshot
       end
-      json.field "prompt_cache_key", options.prompt_cache_key
-      if cache_options = options.prompt_cache_options
-        json.field "prompt_cache_options" do
-          Jsonify.any(json, cache_options)
+      if !moonshot && (tool_choice = options.tool_choice)
+        json.field "tool_choice", tool_choice
+      end
+      if moonshot
+        json.field "prompt_cache_key", options.prompt_cache_key
+        if cache_options = options.prompt_cache_options
+          json.field "prompt_cache_options" do
+            Jsonify.any(json, cache_options)
+          end
         end
-      end
-      if safety = options.safety_identifier
-        json.field "safety_identifier", safety
+        if safety = options.safety_identifier
+          json.field "safety_identifier", safety
+        end
+      elsif user_id = options.user_id
+        json.field "user", user_id
       end
       resolved.sampling_params.each do |key, value|
         json.field key do
@@ -435,7 +467,7 @@ module LLM::AI::Api::MoonshotResponses
     end
   end
 
-  private def self.input_item(json : JSON::Builder, message : Message) : Nil
+  private def self.input_item(json : JSON::Builder, message : Message, moonshot : Bool) : Nil
     case message
     when SystemMessage
       text = Transcript.system_update_text(message)
@@ -445,7 +477,7 @@ module LLM::AI::Api::MoonshotResponses
           json.field "content", text
         end
       end
-      if (added = message.tools_added) && !added.empty?
+      if moonshot && (added = message.tools_added) && !added.empty?
         json.object do
           json.field "type", "additional_tools"
           json.field "role", "developer"
@@ -459,7 +491,7 @@ module LLM::AI::Api::MoonshotResponses
     when UserMessage
       user_message(json, message)
     when AssistantMessage
-      assistant_items(json, message)
+      assistant_items(json, message, moonshot)
     when ToolResultMessage
       json.object do
         json.field "type", "function_call_output"
@@ -502,7 +534,7 @@ module LLM::AI::Api::MoonshotResponses
     end
   end
 
-  private def self.assistant_items(json : JSON::Builder, message : AssistantMessage) : Nil
+  private def self.assistant_items(json : JSON::Builder, message : AssistantMessage, moonshot : Bool) : Nil
     thinking = message.content.select(ThinkingContent).reject(&.thinking.strip.empty?)
     thinking.each do |block|
       json.object do
@@ -536,7 +568,7 @@ module LLM::AI::Api::MoonshotResponses
         json.field "type", "function_call"
         json.field "call_id", call.id
         json.field "name", call.name
-        json.field "namespace", call.namespace
+        json.field "namespace", call.namespace if moonshot
         json.field "arguments", call.arguments.to_json
       end
     end

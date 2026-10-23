@@ -1,0 +1,3 @@
+[workspace]
+additional_dir = [ "/home/spaceman/.lib/crystal/llm/llm", "/home/spaceman/.lib/crystal/llm/llm-chord" ]
+

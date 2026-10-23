@@ -571,7 +571,7 @@ module LLM::AI::Api::OpenAICompletions
       end
       if model.reasoning
         case model.compat.thinking_format
-        when :deepseek
+        when :toggle
           if resolved.thinking_enabled
             json.field "thinking" do
               json.object do
@@ -612,7 +612,7 @@ module LLM::AI::Api::OpenAICompletions
         json.field "role", "system"
         json.field "tools" do
           json.array do
-            added.each { |tool| kimi_tool_definition(json, tool) }
+            added.each { |tool| inline_tool_definition(json, tool) }
           end
         end
       end
@@ -743,7 +743,7 @@ module LLM::AI::Api::OpenAICompletions
     end
   end
 
-  private def self.kimi_tool_definition(json : JSON::Builder, tool : Tool) : Nil
+  private def self.inline_tool_definition(json : JSON::Builder, tool : Tool) : Nil
     json.object do
       json.field "name", tool.name
       json.field "description", tool.description

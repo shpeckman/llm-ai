@@ -743,7 +743,7 @@ module LLM::AI::Api::OpenAICompletions
     end
   end
 
-  private def self.kimi_tool_definition(json : JSON::Builder, tool : Tool) : Nil
+  private def self.inline_tool_definition(json : JSON::Builder, tool : Tool) : Nil
     json.object do
       json.field "name", tool.name
       json.field "description", tool.description

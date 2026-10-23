@@ -5,7 +5,7 @@ require "../src/llm-ai"
 private def deepseek_model(base_url : String = "http://127.0.0.1") : LLM::AI::Model
   compat = LLM::AI::Compat.new(
     max_tokens_field: :max_tokens,
-    thinking_format: :deepseek,
+    thinking_format: :toggle,
     requires_reasoning_content_on_assistant_messages: true,
     supports_store: false,
     supports_response_format: true,

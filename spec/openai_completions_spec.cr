@@ -507,4 +507,84 @@ describe LLM::AI::Api::OpenAICompletions do
     message["reasoning_content"].should eq "let me think"
     message["tool_calls"][0]["function"]["arguments"].should eq JSON.parse(%({"q":"x"}))
   end
+
+  it "emits moonshot payload fields behind compat flags" do
+    compat = LLM::AI::Compat.new(
+      max_tokens_field: :max_completion_tokens,
+      supports_response_format: true,
+      supports_stop: true,
+      supports_prediction: true,
+      supports_logprobs: true,
+      supports_prompt_cache_key: true,
+      supports_safety_identifier: true,
+    )
+    model = LLM::AI::Model.new("kimi-k3", "Kimi K3", "moonshot", "http://127.0.0.1", LLM::AI::ApiKind::OpenaiCompletions,
+      [LLM::AI::InputKind::Text], 256_000, 8192, true,
+      LLM::AI::ModelCost.new(1.2, 4.0, 0.15, 1.2, nil),
+      {"high" => "high", "off" => nil}, false, nil, compat)
+    options = LLM::AI::StreamOptions.new(
+      response_format: JSON.parse(%({"type":"json_object"})),
+      stop: ["END", "STOP"],
+      prediction: JSON.parse(%({"type":"content","content":"expected"})),
+      logprobs: true,
+      top_logprobs: 5,
+      prompt_cache_key: "session-1",
+      prompt_cache_options: JSON.parse(%({"retention":"1h"})),
+      safety_identifier: "user-42",
+    )
+    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(model, user_context, options))
+    payload["response_format"]["type"].should eq "json_object"
+    payload["stop"].as_a.map(&.as_s).should eq ["END", "STOP"]
+    payload["prediction"]["content"].should eq "expected"
+    payload["logprobs"].should eq true
+    payload["top_logprobs"].should eq 5
+    payload["prompt_cache_key"].should eq "session-1"
+    payload["prompt_cache_options"]["retention"].should eq "1h"
+    payload["safety_identifier"].should eq "user-42"
+  end
+
+  it "omits moonshot payload fields without compat flags" do
+    options = LLM::AI::StreamOptions.new(
+      response_format: JSON.parse(%({"type":"json_object"})),
+      stop: ["END"],
+      prediction: JSON.parse(%({"type":"content","content":"expected"})),
+      logprobs: true,
+      top_logprobs: 5,
+      prompt_cache_key: "session-1",
+      prompt_cache_options: JSON.parse(%({"retention":"1h"})),
+      safety_identifier: "user-42",
+    )
+    payload = JSON.parse(LLM::AI::Api::OpenAICompletions.build_payload(deepseek_model, user_context, options))
+    ["response_format", "stop", "prediction", "logprobs", "top_logprobs",
+     "prompt_cache_key", "prompt_cache_options", "safety_identifier"].each do |key|
+      payload.as_h.has_key?(key).should be_false
+    end
+  end
+
+  it "collects logprobs from stream chunks" do
+    logprobs_chunk = {"choices" => [{"index" => 0, "delta" => {"content" => "hi"}, "finish_reason" => JSON::Any.new(nil),
+                                     "logprobs" => JSON.parse(%({"content":[{"token":"hi","logprob":-0.1}]}))}]}.to_json
+    body = sse_body([logprobs_chunk, final_chunk("stop", usage_json(2, 1))])
+    api = MockApi.new.serve(body).start
+    begin
+      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
+      result = stream.result
+      result.logprobs.not_nil![0]["content"][0]["token"].should eq "hi"
+    ensure
+      api.close
+    end
+  end
+
+  it "leaves logprobs nil when the stream carries none" do
+    body = sse_body([content_chunk("hi"), final_chunk("stop", usage_json(2, 1))])
+    api = MockApi.new.serve(body).start
+    begin
+      model = deepseek_model("http://127.0.0.1:#{api.port}")
+      stream = LLM::AI::Api::OpenAICompletions.stream(model, user_context, LLM::AI::StreamOptions.new, auth_result, nil)
+      stream.result.logprobs.should be_nil
+    ensure
+      api.close
+    end
+  end
 end

@@ -298,7 +298,13 @@ module LLM::AI::Api::OpenAICompletions
       raw_stop_reason: state.raw_stop_reason,
       duration_ms: state.duration_ms,
       reasoning_details: state.reasoning_details,
+      logprobs: merged_logprobs(state),
     )
+  end
+
+  private def self.merged_logprobs(state : StreamState) : JSON::Any?
+    return if state.logprobs.empty?
+    JSON::Any.new(state.logprobs)
   end
 
   private def self.emit(event : StreamEvent, state : StreamState) : Nil

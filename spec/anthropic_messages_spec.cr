@@ -433,6 +433,25 @@ describe LLM::AI::Api::AnthropicMessages do
     end
   end
 
+  it "sends bearer auth and no beta headers with the bearer auth scheme" do
+    body = anthropic_sse([message_start, end_turn_delta, message_stop])
+    api = MockApi.new.serve(body).start
+    begin
+      compat = LLM::AI::Compat.new(anthropic_auth_scheme: :bearer)
+      model = anthropic_model_with_compat(compat, "http://127.0.0.1:#{api.port}")
+      auth = LLM::AI::Auth::AuthResult.new(LLM::AI::Auth::ModelAuth.new("sk-moonshot"), "ambient env")
+      stream = LLM::AI::Api::AnthropicMessages.stream(model, anthropic_context, LLM::AI::StreamOptions.new, auth, nil)
+      stream.result.stop_reason.should eq LLM::AI::StopReason::Stop
+      headers = api.last_headers.not_nil!
+      headers["Authorization"].should eq "Bearer sk-moonshot"
+      headers.has_key?("x-api-key").should be_false
+      headers.has_key?("anthropic-beta").should be_false
+      headers["anthropic-version"].should eq "2023-06-01"
+    ensure
+      api.close
+    end
+  end
+
   it "builds adaptive thinking params for 5.5 models" do
     compat = LLM::AI::Compat.new(force_adaptive_thinking: true)
     model = LLM::AI::Model.new("claude-opus-5-5", "claude-opus-5-5", "anthropic", "http://127.0.0.1",

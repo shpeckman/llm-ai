@@ -26,6 +26,7 @@ module LLM::AI::Api::OpenAICompletions
     property streamed_details : Array(JSON::Any)
     property duration_ms : Int64?
     property reasoning_details : JSON::Any?
+    property logprobs : Array(JSON::Any)
 
     def initialize(@model : Model, @options : StreamOptions, @stream : MessageStream)
       @blocks = [] of ContentBlock
@@ -46,6 +47,7 @@ module LLM::AI::Api::OpenAICompletions
       @streamed_details = [] of JSON::Any
       @duration_ms = nil
       @reasoning_details = nil
+      @logprobs = [] of JSON::Any
     end
   end
 
@@ -81,6 +83,9 @@ module LLM::AI::Api::OpenAICompletions
       state.raw_stop_reason = finish
       state.stop_reason, state.error_message = map_stop_reason(finish)
       state.has_finish_reason = true
+    end
+    if logprobs = choice["logprobs"]?
+      state.logprobs << logprobs
     end
     delta = choice["delta"]?
     return unless delta
@@ -293,7 +298,13 @@ module LLM::AI::Api::OpenAICompletions
       raw_stop_reason: state.raw_stop_reason,
       duration_ms: state.duration_ms,
       reasoning_details: state.reasoning_details,
+      logprobs: merged_logprobs(state),
     )
+  end
+
+  private def self.merged_logprobs(state : StreamState) : JSON::Any?
+    return if state.logprobs.empty?
+    JSON::Any.new(state.logprobs)
   end
 
   private def self.emit(event : StreamEvent, state : StreamState) : Nil
@@ -511,6 +522,36 @@ module LLM::AI::Api::OpenAICompletions
         json.field model.compat.max_tokens_field.to_s, max_tokens
       end
       json.field "temperature", resolved.temperature if resolved.temperature
+      if model.compat.supports_response_format && (format = options.response_format)
+        json.field "response_format" do
+          Jsonify.any(json, format)
+        end
+      end
+      if model.compat.supports_stop && (stop = options.stop) && !stop.empty?
+        json.field "stop", stop
+      end
+      if model.compat.supports_prediction && (prediction = options.prediction)
+        json.field "prediction" do
+          Jsonify.any(json, prediction)
+        end
+      end
+      if model.compat.supports_logprobs
+        json.field "logprobs", true if options.logprobs
+        if top = options.top_logprobs
+          json.field "top_logprobs", top
+        end
+      end
+      if model.compat.supports_prompt_cache_key
+        json.field "prompt_cache_key", options.prompt_cache_key
+        if cache_options = options.prompt_cache_options
+          json.field "prompt_cache_options" do
+            Jsonify.any(json, cache_options)
+          end
+        end
+      end
+      if model.compat.supports_safety_identifier && (safety = options.safety_identifier)
+        json.field "safety_identifier", safety
+      end
       if context.tools.empty?
         if has_tool_history(context)
           json.field "tools" do

@@ -405,6 +405,8 @@ module LLM::AI::Api::AnthropicMessages
       end
       headers["user-agent"] = "claude-cli/#{CLAUDE_CODE_VERSION}"
       headers["x-app"] = "cli"
+    elsif model.compat.anthropic_auth_scheme == :bearer
+      headers["Authorization"] = "Bearer #{key}" if key = auth.auth.api_key
     elsif key = auth.auth.api_key
       headers["x-api-key"] = key
     end
@@ -416,6 +418,7 @@ module LLM::AI::Api::AnthropicMessages
 
   private def self.beta_features(model : Model, context : Context, resolved : ResolvedOptions, oauth : Bool) : Array(String)
     features = [] of String
+    return features if model.compat.anthropic_auth_scheme == :bearer
     features << BETA_CLAUDE_CODE << BETA_OAUTH if oauth
     unless context.tools.empty? || model.compat.supports_eager_tool_input_streaming
       features << BETA_FINE_GRAINED

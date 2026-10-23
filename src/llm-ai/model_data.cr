@@ -39,6 +39,10 @@ module LLM::AI::ModelData
              {{ read_file("#{__DIR__}/data/kimi-coding.json") }}
            when "moonshot", "kimi"
              {{ read_file("#{__DIR__}/data/moonshot.json") }}
+           when "moonshot-anthropic"
+             {{ read_file("#{__DIR__}/data/moonshot-anthropic.json") }}
+           when "moonshot-responses"
+             {{ read_file("#{__DIR__}/data/moonshot-responses.json") }}
            when "anthropic"
              {{ read_file("#{__DIR__}/data/anthropic.json") }}
            else
@@ -97,6 +101,13 @@ module LLM::AI::ModelData
       allowed_fallback_models: build_fallback_models(raw),
       requires_tool_result_name: bool_field(raw, "requires_tool_result_name", false),
       requires_assistant_after_tool_result: bool_field(raw, "requires_assistant_after_tool_result", false),
+      supports_response_format: bool_field(raw, "supports_response_format", false),
+      supports_stop: bool_field(raw, "supports_stop", false),
+      supports_prediction: bool_field(raw, "supports_prediction", false),
+      supports_logprobs: bool_field(raw, "supports_logprobs", false),
+      supports_prompt_cache_key: bool_field(raw, "supports_prompt_cache_key", false),
+      supports_safety_identifier: bool_field(raw, "supports_safety_identifier", false),
+      anthropic_auth_scheme: symbol_field(raw, "anthropic_auth_scheme", :x_api_key),
     )
   end
 
@@ -136,6 +147,10 @@ module LLM::AI::ModelData
       :deepseek
     when "openai"
       :openai
+    when "x_api_key"
+      :x_api_key
+    when "bearer"
+      :bearer
     else
       raise Error.new("unknown symbol value: #{value}")
     end

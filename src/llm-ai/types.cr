@@ -25,6 +25,8 @@ module LLM::AI
       when "none"                  then :none
       when "short"                 then :short
       when "long"                  then :long
+      when "x_api_key"             then :x_api_key
+      when "bearer"                then :bearer
       else
         pull.raise "Unknown symbol name"
       end
@@ -48,6 +50,7 @@ module LLM::AI
   enum ApiKind
     OpenaiCompletions
     AnthropicMessages
+    MoonshotResponses
   end
 
   enum InputKind
@@ -296,6 +299,7 @@ module LLM::AI
     getter timestamp : Time
     getter duration_ms : Int64?
     getter reasoning_details : JSON::Any?
+    getter logprobs : JSON::Any?
 
     def initialize(
       @content : Array(ContentBlock),
@@ -315,6 +319,7 @@ module LLM::AI
       @end_turn : Bool = false,
       @duration_ms : Int64? = nil,
       @reasoning_details : JSON::Any? = nil,
+      @logprobs : JSON::Any? = nil,
     )
     end
 
@@ -326,7 +331,8 @@ module LLM::AI
         stop_reason == other.stop_reason && deferred == other.deferred &&
         error_message == other.error_message && raw_stop_reason == other.raw_stop_reason &&
         end_turn == other.end_turn && timestamp == other.timestamp &&
-        duration_ms == other.duration_ms && reasoning_details == other.reasoning_details
+        duration_ms == other.duration_ms && reasoning_details == other.reasoning_details &&
+        logprobs == other.logprobs
     end
 
     def copy_with(
@@ -347,11 +353,12 @@ module LLM::AI
       end_turn : Bool = @end_turn,
       duration_ms : Int64? = @duration_ms,
       reasoning_details : JSON::Any? = @reasoning_details,
+      logprobs : JSON::Any? = @logprobs,
     ) : AssistantMessage
       AssistantMessage.new(
         content, provider, model, timestamp, api, response_model, response_id,
         provider_thinking_level, thinking_level, usage, stop_reason, deferred,
-        error_message, raw_stop_reason, end_turn, duration_ms, reasoning_details,
+        error_message, raw_stop_reason, end_turn, duration_ms, reasoning_details, logprobs,
       )
     end
 
@@ -726,6 +733,14 @@ module LLM::AI
     getter allowed_fallback_models : Array(FallbackModel)
     getter requires_tool_result_name : Bool
     getter requires_assistant_after_tool_result : Bool
+    getter supports_response_format : Bool
+    getter supports_stop : Bool
+    getter supports_prediction : Bool
+    getter supports_logprobs : Bool
+    getter supports_prompt_cache_key : Bool
+    getter supports_safety_identifier : Bool
+    @[JSON::Field(converter: LLM::AI::SymbolName)]
+    getter anthropic_auth_scheme : Symbol
 
     def initialize(
       @max_tokens_field : Symbol = :max_completion_tokens,
@@ -749,6 +764,13 @@ module LLM::AI
       @allowed_fallback_models : Array(FallbackModel) = [] of FallbackModel,
       @requires_tool_result_name : Bool = false,
       @requires_assistant_after_tool_result : Bool = false,
+      @supports_response_format : Bool = false,
+      @supports_stop : Bool = false,
+      @supports_prediction : Bool = false,
+      @supports_logprobs : Bool = false,
+      @supports_prompt_cache_key : Bool = false,
+      @supports_safety_identifier : Bool = false,
+      @anthropic_auth_scheme : Symbol = :x_api_key,
     )
     end
   end
@@ -849,6 +871,14 @@ module LLM::AI
     getter thinking_budgets : Hash(String, Int32)?
     getter max_retry_delay_ms : Int32?
     getter identity : ClientIdentity?
+    getter response_format : JSON::Any?
+    getter stop : Array(String)?
+    getter prediction : JSON::Any?
+    getter logprobs : Bool?
+    getter top_logprobs : Int32?
+    getter prompt_cache_key : String?
+    getter prompt_cache_options : JSON::Any?
+    getter safety_identifier : String?
 
     def initialize(
       @max_tokens : Int32? = nil,
@@ -870,6 +900,14 @@ module LLM::AI
       @thinking_budgets : Hash(String, Int32)? = nil,
       @max_retry_delay_ms : Int32? = nil,
       @identity : ClientIdentity? = nil,
+      @response_format : JSON::Any? = nil,
+      @stop : Array(String)? = nil,
+      @prediction : JSON::Any? = nil,
+      @logprobs : Bool? = nil,
+      @top_logprobs : Int32? = nil,
+      @prompt_cache_key : String? = nil,
+      @prompt_cache_options : JSON::Any? = nil,
+      @safety_identifier : String? = nil,
     )
     end
 
@@ -893,11 +931,21 @@ module LLM::AI
       thinking_budgets : Hash(String, Int32)? = @thinking_budgets,
       max_retry_delay_ms : Int32? = @max_retry_delay_ms,
       identity : ClientIdentity? = @identity,
+      response_format : JSON::Any? = @response_format,
+      stop : Array(String)? = @stop,
+      prediction : JSON::Any? = @prediction,
+      logprobs : Bool? = @logprobs,
+      top_logprobs : Int32? = @top_logprobs,
+      prompt_cache_key : String? = @prompt_cache_key,
+      prompt_cache_options : JSON::Any? = @prompt_cache_options,
+      safety_identifier : String? = @safety_identifier,
     ) : StreamOptions
       StreamOptions.new(
         max_tokens, temperature, thinking_level, thinking_enabled, effort, thinking_display,
         tool_choice, headers, cache_retention, max_retries, timeout_ms, user_id, hooks,
         sampling_params, api_key, session_id, thinking_budgets, max_retry_delay_ms, identity,
+        response_format, stop, prediction, logprobs, top_logprobs, prompt_cache_key,
+        prompt_cache_options, safety_identifier,
       )
     end
   end

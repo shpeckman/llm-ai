@@ -27,6 +27,9 @@ All functionality lives under the `LLM::AI` module.
 - Request/response/event hooks for observability.
 - Client identity: `User-Agent` and provider attribution headers.
 - A scripted faux provider for tests.
+- Moonshot REST endpoints beyond chat: models, balance, files, token
+  estimation, signature verification, web search/fetch, and batches via
+  `Rest::Client` (`Models#client`).
 
 ## Requirements
 
@@ -91,6 +94,12 @@ end
 | `anthropic`   | Anthropic        | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-opus-4-5`, `claude-sonnet-4-6`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
 | `kimi-coding` | Kimi For Coding  | `kimi-for-coding`, `kimi-for-coding-highspeed`                                                                                                                                                       |
 | `moonshot`    | Moonshot         | `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`, `kimi-k2.6`                                                                                                                                 |
+| `moonshot-anthropic` | Moonshot (Anthropic API) | Same Kimi models over Moonshot's Anthropic-compatible endpoint                                                                                                                        |
+| `moonshot-responses` | Moonshot (Responses API) | `kimi-k3` over Moonshot's Responses endpoint                                                                                                                                          |
+
+The three Moonshot providers share the `MOONSHOT_API_KEY` credential and
+differ only in wire protocol: OpenAI chat completions, Anthropic messages,
+and the Responses API.
 
 Model metadata (context window, max tokens, pricing, and per-model
 compatibility flags) is data-driven and loaded from
@@ -279,6 +288,12 @@ Field                                 | Meaning
 `max_retry_delay_ms`                  | Longest server-requested retry wait (default 60 000); `0` removes the cap.
 `identity`                            | `ClientIdentity` (below).
 `sampling_params`                     | Raw per-request parameters merged last.
+`response_format`                     | Response format / JSON schema (compat-gated).
+`stop`                                | Stop sequences (compat-gated).
+`prediction`                          | Predicted-output content (compat-gated).
+`logprobs` / `top_logprobs`           | Token log probabilities (compat-gated); collected on `AssistantMessage#logprobs`.
+`prompt_cache_key` / `prompt_cache_options` | Prompt-cache hints (compat-gated).
+`safety_identifier`                   | Safety identifier (compat-gated).
 `hooks`                               | `StreamHooks` callbacks (below).
 
 ## Examples
@@ -437,10 +452,50 @@ DeepSeek's on-disk context cache is automatic. To get cache hits, keep the
 system prompt and tool definitions byte-stable across turns; cached input tokens
 are reported as `usage.cache_read` and billed at the model's `cache_read` rate.
 
+## Moonshot REST endpoints
+
+`Models#client` returns a `Rest::Client` for a provider's non-streaming REST
+API. Auth resolution matches streaming (override → stored credential →
+environment). Moonshot registers the full endpoint set; other providers raise
+`ModelsError` with kind `"capability"`.
+
+```crystal
+client = models.client("moonshot")
+
+models  = client.list_models
+balance = client.balance
+
+file = client.upload_file("requests.jsonl", "batch")
+batch = client.create_batch(file.id, "12h")
+batch = client.get_batch(batch.id)
+
+estimate = client.estimate_tokens(model, context)
+check = client.verify_signature(nonce, timestamp_ms, "kimi-k3", signature)
+
+results = client.web_search("crystal programming")
+results = client.web_search_pro("crystal", sites: ["crystal-lang.org"])
+page = client.fetch("https://crystal-lang.org")
+
+content = client.file_content(file.id)
+client.delete_file(file.id)
+```
+
+The request signature flow pairs with streaming: send a nonce via
+`StreamOptions#headers` (`X-Msh-Request-Nonce`), read the
+`Msh-Request-Timestamp` / `Msh-Request-Signature` response headers via the
+`on_response` hook, then verify them with `client.verify_signature`.
+
 ## Public API reference
 
 - `LLM::AI::Models` — `.build`, `#provider`, `#providers`, `#model`,
-  `#models_for`, `#stream`, `#chat`, `#store`.
+  `#models_for`, `#stream`, `#chat`, `#client`, `#store`.
+- `LLM::AI::Rest::Client` — `#list_models`, `#balance`, `#upload_file`,
+  `#list_files`, `#get_file`, `#delete_file`, `#file_content`,
+  `#estimate_tokens`, `#verify_signature`, `#web_search`, `#web_search_pro`,
+  `#fetch`, `#create_batch`, `#list_batches`, `#get_batch`, `#cancel_batch`;
+  result types under `LLM::AI::Rest` (`Balance`, `RemoteModel`, `FileObject`,
+  `TokenEstimate`, `SignatureVerification`, `SearchResult`, `SearchProResult`,
+  `FetchResult`, `Batch`, `BatchList`).
 - `LLM::AI::MessageStream` — `#each`, `#result`, `#abort`.
 - `LLM::AI::Context`, `LLM::AI::Tool`, `LLM::AI::StreamOptions`,
   `LLM::AI::StreamHooks`.
